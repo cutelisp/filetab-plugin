@@ -1,4 +1,4 @@
-VERSION = '1.2.2'
+VERSION = "3.4.0"
 
 local micro = import('micro')
 local config = import('micro/config')
@@ -8,7 +8,7 @@ local os = import('os')
 local filepath = import('path/filepath')
 local regexp = import('regexp')
 
-local icon = dofile(config.ConfigDir .. '/plug/filemanager2/icon.lua')
+local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 
 function Icons()
 	return icon.Icons()
@@ -162,9 +162,9 @@ local function get_scanlist(dir, ownership, indent_n)
 	end
 
 	-- Save so we don't have to rerun GetOption a bunch
-	local show_dotfiles = config.GetGlobalOption('filemanager2.showdotfiles')
-	local show_ignored = config.GetGlobalOption('filemanager2.showignored')
-	local folders_first = config.GetGlobalOption('filemanager2.foldersfirst')
+	local show_dotfiles = config.GetGlobalOption('filemanager.showdotfiles')
+	local show_ignored = config.GetGlobalOption('filemanager.showignored')
+	local folders_first = config.GetGlobalOption('filemanager.foldersfirst')
 
 	-- The list of VCS-ignored files (if any)
 	-- Only bother getting ignored files if we're not showing ignored
@@ -422,7 +422,7 @@ local function compress_target(y, delete_y)
 			-- Update the dir message
 			scanlist[y].dirmsg = icons['dir']
 		end
-	elseif config.GetGlobalOption('filemanager2.compressparent') and not delete_y then
+	elseif config.GetGlobalOption('filemanager.compressparent') and not delete_y then
 		goto_parent_dir()
 		-- Prevent a pointless refresh of the view
 		return
@@ -485,7 +485,7 @@ function prompt_delete_at_cursor()
 				-- Delete the target (if its a dir then the children too)
 				local remove_log = go_os.RemoveAll(scanlist[y].abspath)
 				if remove_log == nil then
-					micro.InfoBar():Message('Filemanager2 deleted: ', scanlist[y].abspath)
+					micro.InfoBar():Message('filemanager deleted: ', scanlist[y].abspath)
 					-- Remove the target (and all nested) from scanlist[y + 1]
 					-- true to delete y
 					compress_target(get_safe_y(), true)
@@ -559,7 +559,7 @@ local function try_open_at_y(y)
 			update_current_dir(scanlist[y].abspath)
 		else
 			-- If it's a file, then open it
-			micro.InfoBar():Message('Filemanager2 opened ', scanlist[y].abspath)
+			micro.InfoBar():Message('filemanager opened ', scanlist[y].abspath)
 			-- Opens the absolute path in new vertical view
 			micro.CurPane():VSplitIndex(buffer.NewBufferFromFile(scanlist[y].abspath), true)
 			-- Resizes all views after opening a file
@@ -748,11 +748,11 @@ local function create_filedir(filedir_name, make_dir)
 	if make_dir then
 		-- Creates the dir
 		golib_os.Mkdir(filedir_path, golib_os.ModePerm)
-		micro.Log('Filemanager2 created directory: ' .. filedir_path)
+		micro.Log('filemanager created directory: ' .. filedir_path)
 	else
 		-- Creates the file
 		golib_os.Create(filedir_path)
-		micro.Log('Filemanager2 created file: ' .. filedir_path)
+		micro.Log('filemanager created file: ' .. filedir_path)
 	end
 
 	-- If the file we tried to make doesn't exist, fail
@@ -858,7 +858,7 @@ end
 -- open_tree setup's the view
 local function open_tree()
 	-- Open a new Vsplit (on the very left)
-	micro.CurPane():VSplitIndex(buffer.NewBuffer('', 'filemanager2'), false)
+	micro.CurPane():VSplitIndex(buffer.NewBuffer('', 'filemanager'), false)
 	-- Save the new view so we can access it later
 	tree_view = micro.CurPane()
 
@@ -879,7 +879,7 @@ local function open_tree()
 	tree_view.Buf:SetOptionNative('autosave', false)
 	-- Don't show the statusline to differentiate the view from normal views
 	tree_view.Buf:SetOptionNative('statusformatr', '')
-	tree_view.Buf:SetOptionNative('statusformatl', 'filemanager2')
+	tree_view.Buf:SetOptionNative('statusformatl', 'filemanager')
 	tree_view.Buf:SetOptionNative('scrollbar', false)
 
 	-- Fill the scanlist, and then print its contents to tree_view
@@ -1382,21 +1382,21 @@ end
 
 function init()
 	-- Let the user disable showing of dotfiles like ".editorconfig" or ".DS_STORE"
-	config.RegisterCommonOption('filemanager2', 'showdotfiles', true)
+	config.RegisterCommonOption('filemanager', 'showdotfiles', true)
 	-- Let the user disable showing files ignored by the VCS (i.e. gitignored)
-	config.RegisterCommonOption('filemanager2', 'showignored', true)
+	config.RegisterCommonOption('filemanager', 'showignored', true)
 	-- Let the user disable going to parent directory via left arrow key when file selected (not directory)
-	config.RegisterCommonOption('filemanager2', 'compressparent', true)
+	config.RegisterCommonOption('filemanager', 'compressparent', true)
 	-- Let the user choose to list sub-folders first when listing the contents of a folder
-	config.RegisterCommonOption('filemanager2', 'foldersfirst', true)
+	config.RegisterCommonOption('filemanager', 'foldersfirst', true)
 	-- Lets the user have the filetree auto-open any time Micro is opened
 	-- false by default, as it's a rather noticable user-facing change
-	config.RegisterCommonOption('filemanager2', 'openonstart', true)
+	config.RegisterCommonOption('filemanager', 'openonstart', true)
 	-- Use nerd fonts icons
-	config.RegisterCommonOption('filemanager2', 'nerdfonts', true)
+	config.RegisterCommonOption('filemanager', 'nerdfonts', true)
 
 	-- Use file icon in status bar
-	micro.SetStatusInfoFn('filemanager2.FileIcon')
+	micro.SetStatusInfoFn('filemanager.FileIcon')
 
 	-- Open/close the tree view
 	config.MakeCommand('tree', toggle_tree, config.NoComplete)
@@ -1410,12 +1410,12 @@ function init()
 	config.MakeCommand('rm', prompt_delete_at_cursor, config.NoComplete)
 	-- Adds colors to the ".." and any dir's in the tree view via syntax highlighting
 	-- TODO: Change it to work with git, based on untracked/changed/added/whatever
-	config.AddRuntimeFile('filemanager2', config.RTSyntax, 'syntax/filemanager2.yaml')
+	config.AddRuntimeFile('filemanager', config.RTSyntax, 'syntax/filemanager.yaml')
 
 	-- NOTE: This must be below the syntax load command or coloring won't work
 	-- Just auto-open if the option is enabled
 	-- This will run when the plugin first loads
-	if config.GetGlobalOption('filemanager2.openonstart') then
+	if config.GetGlobalOption('filemanager.openonstart') then
 		-- Check for safety on the off-chance someone's init.lua breaks this
 		if tree_view == nil then
 			open_tree()
@@ -1425,7 +1425,7 @@ function init()
 		else
 			-- Log error so they can fix it
 			micro.Log(
-				'Warning: filemanager2.openonstart was enabled, but somehow the tree was already open so the option was ignored.'
+				'Warning: filemanager.openonstart was enabled, but somehow the tree was already open so the option was ignored.'
 			)
 		end
 	end
