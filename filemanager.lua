@@ -6,7 +6,6 @@ local shell = import('micro/shell')
 local buffer = import('micro/buffer')
 local os = import('os')
 local filepath = import('path/filepath')
-local regexp = import('regexp')
 
 local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 
@@ -29,7 +28,7 @@ local function clear_messenger()
 end
 
 -- Holds the micro.CurPane() we're manipulating
-local tree_view = nil
+local tree_view
 -- Keeps track of the current working directory
 local current_dir = os.Getwd()
 -- Keep track of current highest visible indent to resize width appropriately
@@ -364,7 +363,7 @@ local function compress_target(y, delete_y)
 	-- Check if the target is a dir, since files don't have anything to compress
 	-- Also make sure it's actually an uncompressed dir by checking the gutter message
 	if scanlist[y].dirmsg == icons['dir_open'] then
-		local target_index, delete_index
+		local delete_index
 		-- Add the original target y to stuff to delete
 		local delete_under = { [1] = y }
 		local new_table = {}
@@ -545,7 +544,7 @@ end
 -- If it's a dir then it moves into the dir and refreshes
 -- If it's actually a file, open it in a new vsplit
 -- THIS EXPECTS ZERO-BASED Y
-local function try_open_at_y(y)
+local function try_open_at_y(y, direction)
 	local icons = Icons()
 
 	-- 2 is the zero-based index of ".."
@@ -560,8 +559,13 @@ local function try_open_at_y(y)
 		else
 			-- If it's a file, then open it
 			micro.InfoBar():Message('filemanager opened ', scanlist[y].abspath)
-			-- Opens the absolute path in new vertical view
-			micro.CurPane():VSplitIndex(buffer.NewBufferFromFile(scanlist[y].abspath), true)
+			if direction == 'vsplit' then
+				-- Opens the absolute path in new vertical view
+				micro.CurPane():VSplitIndex(buffer.NewBufferFromFile(scanlist[y].abspath), true)
+			else
+				-- Opens the absolute path in new horizontal view
+				micro.CurPane():HSplitIndex(buffer.NewBufferFromFile(scanlist[y].abspath), true)
+			end
 			-- Resizes all views after opening a file
 			-- tabs[curTab + 1]:Resize()
 		end
@@ -650,7 +654,7 @@ end
 
 -- Prompts for a new name, then renames the file/dir at the cursor's position
 -- Not local so Micro can use it
-function rename_at_cursor(bp, args)
+function rename_at_cursor(_, args)
 	if micro.CurPane() ~= tree_view then
 		micro.InfoBar():Message('Rename only works with the cursor in the tree!')
 		return
@@ -828,7 +832,7 @@ local function create_filedir(filedir_name, make_dir)
 end
 
 -- Triggered with "touch filename"
-function new_file(bp, args)
+function new_file(_, args)
 	-- Safety check they actually passed a name
 	if #args < 1 then
 		micro.InfoBar():Error('When using "touch" you need to input a file name')
@@ -842,7 +846,7 @@ function new_file(bp, args)
 end
 
 -- Triggered with "mkdir dirname"
-function new_dir(bp, args)
+function new_dir(_, args)
 	-- Safety check they actually passed a name
 	if #args < 1 then
 		micro.InfoBar():Error('When using "mkdir" you need to input a dir name')
@@ -1000,7 +1004,7 @@ function try_open_at_cursor()
 		return
 	end
 
-	try_open_at_y(tree_view.Cursor.Loc.Y)
+	try_open_at_y(tree_view.Cursor.Loc.Y, 'vsplit')
 end
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1055,7 +1059,7 @@ function preQuit(view)
 end
 
 -- Close all
-function preQuitAll(view)
+function preQuitAll(_)
 	close_tree()
 end
 
@@ -1128,9 +1132,9 @@ function preMousePress(view, event)
 			local x, y = event:Position()
 			if x and y then
 				-- Fixes the y because softwrap messes with it
-				local new_x, new_y = tree_view:GetMouseClickLocation(x, y)
+				local _, new_y = tree_view:GetMouseClickLocation(x, y)
 				-- Try to open whatever is at the click's y index
-				try_open_at_y(new_y)
+				try_open_at_y(new_y, 'vsplit')
 			end
 		end
 		-- Don't actually allow the mousepress to trigger, so we avoid highlighting stuff
@@ -1179,7 +1183,7 @@ function preIndentSelection(view)
 		tab_pressed = true
 		-- Open the file
 		-- Using tab instead of enter, since enter won't work with Readonly
-		try_open_at_y(tree_view.Cursor.Loc.Y)
+		try_open_at_y(tree_view.Cursor.Loc.Y, 'vsplit')
 		-- Don't actually insert a tab
 		return false
 	end
@@ -1187,18 +1191,23 @@ end
 
 -- Workaround for tab getting inserted into opened files
 -- Ref https://github.com/zyedidia/micro/issues/992
-function preInsertTab(view)
+function preInsertTab(_)
 	if tab_pressed then
 		tab_pressed = false
 		return false
 	end
 end
+
 function preInsertNewline(view)
 	if view == tree_view then
+		-- +1 because of Go's zero-based index
+		uncompress_target(get_safe_y())
+		-- Don't actually move the cursor, as it messes with selection
 		return false
 	end
 	return true
 end
+
 -- CtrlL
 function onJumpLine(view)
 	-- Highlight the line after jumping to it
@@ -1242,12 +1251,12 @@ end
 -- NOTE: This is a workaround for "cd" not having its own callback
 local precmd_dir
 
-function preCommandMode(view)
+function preCommandMode(_)
 	precmd_dir = os.Getwd()
 end
 
 -- Update the current dir when using "cd"
-function onCommandMode(view)
+function onCommandMode(_)
 	local new_dir = os.Getwd()
 	-- Only do anything if the tree is open, and they didn't cd to nothing
 	if tree_view ~= nil and new_dir ~= precmd_dir and new_dir ~= current_dir then
@@ -1408,6 +1417,21 @@ function init()
 	config.MakeCommand('mkdir', new_dir, config.NoComplete)
 	-- Delete a file/dir, and anything contained in it if it's a dir
 	config.MakeCommand('rm', prompt_delete_at_cursor, config.NoComplete)
+
+	-- Command to open current selection in vsplit
+	config.MakeCommand('vopen', function()
+		if tree_view ~= nil then
+			try_open_at_y(tree_view.Cursor.Loc.Y, 'vsplit')
+		end
+	end, config.NoComplete)
+
+	-- Command to open current selection in hsplit
+	config.MakeCommand('hopen', function()
+		if tree_view ~= nil then
+			try_open_at_y(tree_view.Cursor.Loc.Y, 'hsplit')
+		end
+	end, config.NoComplete)
+
 	-- Adds colors to the ".." and any dir's in the tree view via syntax highlighting
 	-- TODO: Change it to work with git, based on untracked/changed/added/whatever
 	config.AddRuntimeFile('filemanager', config.RTSyntax, 'syntax/filemanager.yaml')
