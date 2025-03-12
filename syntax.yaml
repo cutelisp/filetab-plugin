@@ -1,7 +1,7 @@
-filetype: filemanager
+filetype: filetab
 
 detect:
-    filename: "^filemanager$"
+    filename: "^filetab$"
 
 rules:
     # The "..", the separator line thing, and directories
