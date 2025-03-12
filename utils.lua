@@ -16,6 +16,19 @@ local function get_safe_y(tree_view, optional_y)
 	return y
 end
 
+-- Returns the basename of a path (aka a name without leading path)
+local function get_basename(path)
+	if path == nil then
+		--micro.Log('Bad path passed to get_basename')TODO
+		return nil
+	else
+		-- Get Go's path lib for a basename callback
+		local golib_path = import('filepath')
+		return golib_path.Base(path)
+	end
+end
+
+
 
 -- Hightlights the line when you move the cursor up/down
 local function select_line(tree_view, last_y)
@@ -118,6 +131,7 @@ local function is_scanlist_empty(scanlist)
 end
 
 return {
+	get_basename = get_basename,
 	get_safe_y = get_safe_y,
 	select_line = select_line,
 	repeat_str = repeat_str,

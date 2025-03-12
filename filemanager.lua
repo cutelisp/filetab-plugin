@@ -52,11 +52,26 @@ local function new_listobj(path, d, o, i)
 		['increase_owner'] = function(self, plus_num)
 			self.owner = self.owner + plus_num
 		end,
+		['contents'] = function(self)
+			local content 
+			if self.directory_symbol ~= nil then
+				-- Add the + or - to the left to signify if it's compressed or not
+				-- Add a forward slash to the right to signify it's a dir
+				content = self.directory_symbol .. ' ' .. utils.get_basename(self.abspath) .. '/'
+			else
+				-- Use the basename from the full path for display
+				-- Two spaces to align with any directories, instead of being "off"
+				-- content = self.directory_symbol .. '  ' .. utils.get_basename(scanlist[i].abspath) TODO, I commented cuz I think this line makes no sense (I did changes in the if above)
+			end
+
+			if self.owner > 0 then
+				-- Add a space and repeat it * the indent number
+				content = utils.repeat_str(' ', 2 * self.indent) .. content
+			end
+			return content
+		end,
 	}
 end
-
-
-
 
 
 -- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
@@ -88,17 +103,6 @@ local function get_ignored_files(tar_dir)
 	return readout_results
 end
 
--- Returns the basename of a path (aka a name without leading path)
-local function get_basename(path)
-	if path == nil then
-		micro.Log('Bad path passed to get_basename')
-		return nil
-	else
-		-- Get Go's path lib for a basename callback
-		local golib_path = import('filepath')
-		return golib_path.Base(path)
-	end
-end
 
 
 
@@ -212,40 +216,22 @@ local function refresh_view()
 	-- Current dir
 	tree_view.Buf.EventHandler:Insert(buffer.Loc(0, 0), current_dir .. '\n')
 	-- An ASCII separator
-	tree_view.Buf.EventHandler:Insert(buffer.Loc(0, 1), utils.repeat_str('─', tree_view:GetView().Width) .. '\n')
+	tree_view.Buf.EventHandler:Insert(buffer.Loc(0, 1), utils.repeat_str('─', tree_view:GetView().Width) .. '\n') -- TODO this \n is probably wrong
 	-- The ".." and use a newline if there are things in the current dir
 	tree_view.Buf.EventHandler:Insert(buffer.Loc(0, 2), (#scanlist > 0 and '..\n' or '..'))
 
 	-- Holds the current basename of the path (purely for display)
-	local display_content
+	local content
 
 	-- NOTE: might want to not do all these concats in the loop, it can get slow
 	for i = 1, #scanlist do
-		-- The first 3 indicies are the dir/separator/"..", so skip them
-		if scanlist[i].directory_symbol ~= nil then
-			-- Add the + or - to the left to signify if it's compressed or not
-			-- Add a forward slash to the right to signify it's a dir
-			display_content = scanlist[i].directory_symbol .. ' ' .. get_basename(scanlist[i].abspath) .. '/'
-		else
-			-- Use the basename from the full path for display
-			-- Two spaces to align with any directories, instead of being "off"
-			display_content = scanlist[i].directory_symbol .. '  ' .. get_basename(scanlist[i].abspath)
-		end
-
-		if scanlist[i].owner > 0 then
-			-- Add a space and repeat it * the indent number
-			display_content = utils.repeat_str(' ', 2 * scanlist[i].indent) .. display_content
-		end
-
 		-- Newlines are needed for all inserts except the last
 		-- If you insert a newline on the last, it leaves a blank spot at the bottom
-		if i < #scanlist then
-			display_content = display_content .. '\n'
-		end
+		content = scanlist[i]:contents() .. (i < #scanlist and '\n' or '')
 
 		-- Insert line-by-line to avoid out-of-bounds on big folders
 		-- +2 so we skip the 0/1/2 positions that hold the top dir/separator/..
-		tree_view.Buf.EventHandler:Insert(buffer.Loc(0, i + 2), display_content)
+		tree_view.Buf.EventHandler:Insert(buffer.Loc(0, i + 2), content)
 	end
 
 	-- Resizes all views after messing with ours
@@ -770,7 +756,7 @@ local function open_tree()
 	tree_view = micro.CurPane()
 
 	-- Set the width of tree_view to 30% & lock it
-	tree_view:ResizePane(40)
+	tree_view:ResizePane(30)
 	-- Set the type to unsavable
 	-- tree_view.Buf.Type = buffer.BTLog
 	tree_view.Buf.Type.Scratch = true
