@@ -1,3 +1,39 @@
+-- Stat a path to check if it exists, returning true/false
+local function is_path(path)
+	local go_os = import('os')
+	-- Stat the file/dir path we created
+	-- file_stat should be non-nil, and stat_err should be nil on success
+	local file_stat, stat_err = go_os.Stat(path)
+	-- Check if what we tried to create exists
+	if stat_err ~= nil then
+		-- true/false if the file/dir exists
+		return go_os.IsExist(stat_err)
+	elseif file_stat ~= nil then
+		-- Assume it exists if no errors
+		return true
+	end
+	return false
+end
+
+
+
+-- Used to fail certain actions that we shouldn't allow on the tree_view
+local function asd(view, tree_view)
+	if view == tree_view then
+		return false
+	end
+end
+
+-- Up
+local function onCursorUp(view, tree_view, micro)
+	micro.InfoBar():Error('Error checking if is dir: ', "asdasdasd")
+	asd(view, tree_view)
+
+end
+
+
+
+
 -- A check for if a path is a dir
 local function is_dir(micro, path)
 	-- Used for checking if dir
@@ -15,6 +51,7 @@ local function is_dir(micro, path)
 		return nil
 	end
 end
+
 
 -- Returns true/false if the file is a dotfile
 local function is_dotfile(file_name)
@@ -36,7 +73,9 @@ local function is_scanlist_empty(scanlist)
 end
 
 return {
+	is_path = is_path,
 	is_dir = is_dir, 
 	is_dotfile = is_dotfile,
-	is_scanlist_empty = is_scanlist_empty
+	is_scanlist_empty = is_scanlist_empty,
+	onCursorUp = onCursorUp
 }

@@ -613,22 +613,6 @@ local function uncompress_target(y)
 	end
 end
 
--- Stat a path to check if it exists, returning true/false
-local function path_exists(path)
-	local go_os = import('os')
-	-- Stat the file/dir path we created
-	-- file_stat should be non-nil, and stat_err should be nil on success
-	local file_stat, stat_err = go_os.Stat(path)
-	-- Check if what we tried to create exists
-	if stat_err ~= nil then
-		-- true/false if the file/dir exists
-		return go_os.IsExist(stat_err)
-	elseif file_stat ~= nil then
-		-- Assume it exists if no errors
-		return true
-	end
-	return false
-end
 
 -- Prompts for a new name, then renames the file/dir at the cursor's position
 -- Not local so Micro can use it
@@ -669,7 +653,7 @@ function rename_at_cursor(_, args)
 	end
 
 	-- Check if the rename worked
-	if not path_exists(new_path) then
+	if not utils.is_path(new_path) then
 		micro.InfoBar():Error('Path doesn\'t exist after rename!')
 		return
 	end
@@ -719,7 +703,7 @@ local function create_filedir(filedir_name, make_dir)
 	end
 
 	-- Check if the name is already taken by a file/dir
-	if path_exists(filedir_path) then
+	if utils.is_path(filedir_path) then
 		micro.InfoBar():Error('You can\'t create a file/dir with a pre-existing name')
 		return
 	end
@@ -738,7 +722,7 @@ local function create_filedir(filedir_name, make_dir)
 	end
 
 	-- If the file we tried to make doesn't exist, fail
-	if not path_exists(filedir_path) then
+	if not utils.is_path(filedir_path) then
 		micro.InfoBar():Error('The file/dir creation failed')
 
 		return
@@ -1051,10 +1035,6 @@ function preCursorDown(view)
 	end
 end
 
--- Up
-function onCursorUp(view)
-	selectline_if_tree(view)
-end
 
 -- Alt-Shift-{
 -- Go to target's parent directory (if exists)
@@ -1064,6 +1044,11 @@ function preParagraphPrevious(view)
 		-- Don't actually do the action
 		return false
 	end
+end
+
+-- Up
+function onCursorUp(view)
+	selectline_if_tree(view)
 end
 
 -- Alt-Shift-}
@@ -1076,14 +1061,14 @@ function preParagraphNext(view)
 	end
 end
 
--- PageUp
-function onCursorPageUp(view)
-	aftermove_if_tree(view)
-end
-
 -- Ctrl-Up
 function onCursorStart(view)
 	aftermove_if_tree(view)
+end
+
+-- PageUp
+function onCursorPageUp(view)
+	false_if_tree(view)
 end
 
 -- PageDown
