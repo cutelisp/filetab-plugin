@@ -1068,7 +1068,7 @@ end
 
 -- PageUp
 function onCursorPageUp(view)
-	false_if_tree(view)
+	aftermove_if_tree(view)
 end
 
 -- PageDown

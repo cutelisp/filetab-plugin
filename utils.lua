@@ -16,24 +16,6 @@ local function is_path(path)
 end
 
 
-
--- Used to fail certain actions that we shouldn't allow on the tree_view
-local function asd(view, tree_view)
-	if view == tree_view then
-		return false
-	end
-end
-
--- Up
-local function onCursorUp(view, tree_view, micro)
-	micro.InfoBar():Error('Error checking if is dir: ', "asdasdasd")
-	asd(view, tree_view)
-
-end
-
-
-
-
 -- A check for if a path is a dir
 local function is_dir(micro, path)
 	-- Used for checking if dir
@@ -77,5 +59,4 @@ return {
 	is_dir = is_dir, 
 	is_dotfile = is_dotfile,
 	is_scanlist_empty = is_scanlist_empty,
-	onCursorUp = onCursorUp
 }
