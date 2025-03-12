@@ -39,10 +39,10 @@ local highest_visible_indent = 0
 local scanlist = {}
 
 -- Get a new object used when adding to scanlist
-local function new_listobj(p, d, o, i)
+local function new_listobj(path, d, o, i)
 	return {
-		['abspath'] = p,
-		['dirmsg'] = d,
+		['abspath'] = path,
+		['directory_symbol'] = d,
 		['owner'] = o,
 		['indent'] = i,
 		-- Since decreasing/increasing is common, we include these with the object
@@ -123,9 +123,9 @@ local function get_scanlist(dir, ownership, indent_n)
 
 	local function get_results_object(file_name)
 		local abs_path = filepath.Join(dir, file_name)
-		local dirmsg = (utils.is_dir(micro, abs_path) and icons['dir'] or GetIcon(file_name))
+		local directory_symbol = (utils.is_dir(micro, abs_path) and icons['dir'] or GetIcon(file_name))
 
-		return new_listobj(abs_path, dirmsg, ownership, indent_n)
+		return new_listobj(abs_path, directory_symbol, ownership, indent_n)
 	end
 
 	-- Save so we don't have to rerun GetOption a bunch
@@ -201,7 +201,6 @@ local function refresh_view()
 	clear_messenger()
 
 	-- If it's less than 30, just use 30 for width. Don't want it too small
-
 	if tree_view:GetView().Width < 30 then
 		tree_view:ResizePane(30)
 	end
@@ -223,14 +222,14 @@ local function refresh_view()
 	-- NOTE: might want to not do all these concats in the loop, it can get slow
 	for i = 1, #scanlist do
 		-- The first 3 indicies are the dir/separator/"..", so skip them
-		if scanlist[i].dirmsg == icons['dir'] or scanlist[i].dirmsg == icons['dir_open'] then
+		if scanlist[i].directory_symbol ~= nil then
 			-- Add the + or - to the left to signify if it's compressed or not
 			-- Add a forward slash to the right to signify it's a dir
-			display_content = scanlist[i].dirmsg .. ' ' .. get_basename(scanlist[i].abspath) .. '/'
+			display_content = scanlist[i].directory_symbol .. ' ' .. get_basename(scanlist[i].abspath) .. '/'
 		else
 			-- Use the basename from the full path for display
 			-- Two spaces to align with any directories, instead of being "off"
-			display_content = scanlist[i].dirmsg .. '  ' .. get_basename(scanlist[i].abspath)
+			display_content = scanlist[i].directory_symbol .. '  ' .. get_basename(scanlist[i].abspath)
 		end
 
 		if scanlist[i].owner > 0 then
@@ -282,7 +281,7 @@ local function compress_target(y, delete_y)
 	end
 	-- Check if the target is a dir, since files don't have anything to compress
 	-- Also make sure it's actually an uncompressed dir by checking the gutter message
-	if scanlist[y].dirmsg == icons['dir_open'] then
+	if scanlist[y].directory_symbol == icons['dir_open'] then
 		local delete_index
 		-- Add the original target y to stuff to delete
 		local delete_under = { [1] = y }
@@ -303,7 +302,7 @@ local function compress_target(y, delete_y)
 						-- Keep count of total deleted (can't use #delete_under because it's for deleted dir count)
 						del_count = del_count + 1
 						-- Check if an uncompressed dir
-						if scanlist[i].dirmsg == icons['dir_open'] then
+						if scanlist[i].directory_symbol == icons['dir_open'] then
 							-- Add the index to stuff to delete, since it holds nested content
 							delete_under[#delete_under + 1] = i
 						end
@@ -339,7 +338,7 @@ local function compress_target(y, delete_y)
 		-- If not deleting, then update the gutter message to be + to signify compressed
 		if not delete_y then
 			-- Update the dir message
-			scanlist[y].dirmsg = icons['dir']
+			scanlist[y].directory_symbol = icons['dir']
 		end
 	elseif config.GetGlobalOption('filemanager.compressparent') and not delete_y then
 		goto_parent_dir()
@@ -393,7 +392,7 @@ function prompt_delete_at_cursor()
 
 	micro.InfoBar():YNPrompt(
 		'Do you want to delete the '
-			.. (scanlist[y].dirmsg == icons['dir'] and 'dir' or 'file')
+			.. (scanlist[y].directory_symbol == icons['dir'] and 'dir' or 'file')
 			.. ' "'
 			.. scanlist[y].abspath
 			.. '"? ',
@@ -473,7 +472,7 @@ local function try_open_at_y(y, direction)
 	elseif y > 2 and not scanlist_is_empty() then
 		-- -2 to conform to our scanlist "missing" first 3 indicies
 		y = y - 2
-		if scanlist[y].dirmsg == icons['dir'] or scanlist[y].dirmsg == icons['dir_open'] then
+		if scanlist[y].directory_symbol == icons['dir'] or scanlist[y].directory_symbol == icons['dir_open'] then
 			-- if passed path is a directory, update the current dir to be one deeper..
 			update_current_dir(scanlist[y].abspath)
 		else
@@ -503,7 +502,7 @@ local function uncompress_target(y)
 		return
 	end
 	-- Only uncompress if it's a dir and it's not already uncompressed
-	if scanlist[y].dirmsg == icons['dir'] then
+	if scanlist[y].directory_symbol == icons['dir'] then
 		-- Get a new scanlist with results from the scan in the target dir
 		local scan_results = get_scanlist(scanlist[y].abspath, y, scanlist[y].indent + 1)
 		-- Don't run any of this if there's nothing in the dir we scanned, pointless
@@ -538,7 +537,7 @@ local function uncompress_target(y)
 		end
 
 		-- Change to minus to signify it's uncompressed
-		scanlist[y].dirmsg = icons['dir_open']
+		scanlist[y].directory_symbol = icons['dir_open']
 
 		-- Check if we actually need to resize, or if we're nesting at the same indent
 		-- Also check if there's anything in the dir, as we don't need to expand on an empty dir
@@ -632,7 +631,7 @@ local function create_filedir(filedir_name, make_dir)
 	-- Check there's actually anything in the list, and that they're not on the ".."
 	if not is_scanlist_empty and y ~= 0 then
 		-- If they're inserting on a folder, don't strip its path
-		if scanlist[y].dirmsg == icons['dir'] or scanlist[y].dirmsg == icons['dir_open'] then
+		if scanlist[y].directory_symbol == icons['dir'] or scanlist[y].directory_symbol == icons['dir_open'] then
 			-- Join our new file/dir onto the dir
 			filedir_path = filepath.Join(scanlist[y].abspath, filedir_name)
 		else
@@ -682,11 +681,11 @@ local function create_filedir(filedir_name, make_dir)
 		last_y = tree_view.Cursor.Loc.Y + 1
 
 		-- Only actually add the object to the list if it's not created on an uncompressed folder
-		if scanlist[y].dirmsg == icons['dir'] then
+		if scanlist[y].directory_symbol == icons['dir'] then
 			-- Exit early, since it was created into an uncompressed folder
 
 			return
-		elseif scanlist[y].dirmsg == icons['dir_open'] then
+		elseif scanlist[y].directory_symbol == icons['dir_open'] then
 			-- Check if created on top of an uncompressed folder
 			-- Change ownership to the folder it was created on top of..
 			-- otherwise, the ownership would be incorrect
@@ -771,7 +770,7 @@ local function open_tree()
 	tree_view = micro.CurPane()
 
 	-- Set the width of tree_view to 30% & lock it
-	tree_view:ResizePane(30)
+	tree_view:ResizePane(40)
 	-- Set the type to unsavable
 	-- tree_view.Buf.Type = buffer.BTLog
 	tree_view.Buf.Type.Scratch = true
@@ -846,7 +845,7 @@ function goto_prev_dir()
 		for i = cur_y - 1, 1, -1 do
 			move_count = move_count + 1
 			-- If a dir, stop counting
-			if scanlist[i].dirmsg == icons['dir'] or scanlist[i].dirmsg == icons['dir_open'] then
+			if scanlist[i].directory_symbol == icons['dir'] or scanlist[i].directory_symbol == icons['dir_open'] then
 				-- Jump to its parent (the ownership)
 				tree_view.Cursor:UpN(move_count)
 				utils.select_line(tree_view)
@@ -877,7 +876,7 @@ function goto_next_dir()
 		for i = cur_y + 1, #scanlist do
 			move_count = move_count + 1
 			-- If a dir, stop counting
-			if scanlist[i].dirmsg == icons['dir'] or scanlist[i].dirmsg == icons['dir_open'] then
+			if scanlist[i].directory_symbol == icons['dir'] or scanlist[i].directory_symbol == icons['dir_open'] then
 				-- Jump to its parent (the ownership)
 				tree_view.Cursor:DownN(move_count)
 				utils.select_line(tree_view)
