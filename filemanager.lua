@@ -55,17 +55,7 @@ local function new_listobj(p, d, o, i)
 	}
 end
 
--- Repeats a string x times, then returns it concatenated into one string
-local function repeat_str(str, len)
-	-- Do NOT try to concat in a loop, it freezes micro...
-	-- instead, use a temporary table to hold values
-	local string_table = {}
-	for i = 1, len do
-		string_table[i] = str
-	end
-	-- Return the single string of repeated characters
-	return table.concat(string_table)
-end
+
 
 
 
@@ -193,56 +183,8 @@ local function get_scanlist(dir, ownership, indent_n)
 	return results
 end
 
--- A short "get y" for when acting on the scanlist
--- Needed since we don't store the first 3 visible indicies in scanlist
-local function get_safe_y(optional_y)
-	-- Default to 0 so we can check against and see if it's bad
-	local y = 0
-	-- Make the passed y optional
-	if optional_y == nil then
-		-- Default to cursor's Y loc if nothing was passed, instead of declaring another y
-		optional_y = tree_view.Cursor.Loc.Y
-	end
-	-- 0/1/2 would be the top "dir, separator, .." so check if it's past
-	if optional_y > 2 then
-		-- -2 to conform to our scanlist, since zero-based Go index & Lua's one-based
-		y = tree_view.Cursor.Loc.Y - 2
-	end
-	return y
-end
 
--- Joins the target dir's leading path to the passed name
-local function dirname_and_join(path, join_name)
-	-- The leading path to the dir we're in
-	local leading_path = filepath.Dir(path)
-	-- Joins with OS-specific slashes
-	return filepath.Join(leading_path, join_name)
-end
 
--- Hightlights the line when you move the cursor up/down
-local function select_line(last_y)
-	-- Make last_y optional
-	if last_y ~= nil then
-		-- Don't let them move past ".." by checking the result first
-		if last_y > 1 then
-			-- If the last position was valid, move back to it
-			tree_view.Cursor.Loc.Y = last_y
-		end
-	elseif tree_view.Cursor.Loc.Y < 2 then
-		-- Put the cursor on the ".." if it's above it
-		tree_view.Cursor.Loc.Y = 2
-	end
-
-	-- Puts the cursor back in bounds (if it isn't) for safety
-	tree_view.Cursor:Relocate()
-
-	-- Makes sure the cursor is visible (if it isn't)
-	-- (false) means no callback
-	tree_view:Center()
-
-	-- Highlight the current line where the cursor is
-	tree_view.Cursor:SelectLine()
-end
 
 -- Simple true/false if scanlist is currently empty
 local function scanlist_is_empty()
@@ -271,7 +213,7 @@ local function refresh_view()
 	-- Current dir
 	tree_view.Buf.EventHandler:Insert(buffer.Loc(0, 0), current_dir .. '\n')
 	-- An ASCII separator
-	tree_view.Buf.EventHandler:Insert(buffer.Loc(0, 1), repeat_str('─', tree_view:GetView().Width) .. '\n')
+	tree_view.Buf.EventHandler:Insert(buffer.Loc(0, 1), utils.repeat_str('─', tree_view:GetView().Width) .. '\n')
 	-- The ".." and use a newline if there are things in the current dir
 	tree_view.Buf.EventHandler:Insert(buffer.Loc(0, 2), (#scanlist > 0 and '..\n' or '..'))
 
@@ -293,7 +235,7 @@ local function refresh_view()
 
 		if scanlist[i].owner > 0 then
 			-- Add a space and repeat it * the indent number
-			display_content = repeat_str(' ', 2 * scanlist[i].indent) .. display_content
+			display_content = utils.repeat_str(' ', 2 * scanlist[i].indent) .. display_content
 		end
 
 		-- Newlines are needed for all inserts except the last
@@ -317,7 +259,7 @@ local function move_cursor_top()
 	tree_view.Cursor.Loc.Y = 2
 
 	-- select the line after moving
-	select_line()
+	utils.select_line(tree_view)
 end
 
 local function refresh_and_select()
@@ -327,7 +269,7 @@ local function refresh_and_select()
 	-- Actually refresh
 	refresh_view()
 	-- Moves the cursor back to it's original position
-	select_line(last_y)
+	utils.select_line(tree_view, last_y)
 end
 
 -- Find everything nested under the target, and remove it from the scanlist
@@ -441,7 +383,7 @@ end
 function prompt_delete_at_cursor()
 	local icons = Icons()
 
-	local y = get_safe_y()
+	local y = utils.get_safe_y(tree_view)
 	-- Don't let them delete the top 3 index dir/separator/..
 	if y == 0 or scanlist_is_empty() then
 		micro.InfoBar():Error('You can\'t delete that')
@@ -465,7 +407,7 @@ function prompt_delete_at_cursor()
 					micro.InfoBar():Message('filemanager deleted: ', scanlist[y].abspath)
 					-- Remove the target (and all nested) from scanlist[y + 1]
 					-- true to delete y
-					compress_target(get_safe_y(), true)
+					compress_target(utils.get_safe_y(tree_view), true)
 				else
 					micro.InfoBar():Error('Failed deleting file/dir: ', remove_log)
 				end
@@ -631,7 +573,7 @@ function rename_at_cursor(_, args)
 	local new_name = args[1]
 
 	-- +1 since Go uses zero-based indices
-	local y = get_safe_y()
+	local y = utils.get_safe_y(tree_view)
 	-- Check if they're trying to rename the top stuff
 	if y == 0 then
 		-- Error since they tried to rename the top stuff
@@ -642,7 +584,7 @@ function rename_at_cursor(_, args)
 	-- The old file/dir's path
 	local old_path = scanlist[y].abspath
 	-- Join the path into their supplied rename, so that we have an absolute path
-	local new_path = dirname_and_join(old_path, new_name)
+	local new_path = utils.dirname_and_join(old_path, new_name)
 	-- Use Go's os package for renaming the file/dir
 	local golib_os = import('os')
 	-- Actually rename the file
@@ -681,7 +623,7 @@ local function create_filedir(filedir_name, make_dir)
 	end
 
 	-- The target they're trying to create on top of/in/at/whatever
-	local y = get_safe_y()
+	local y = utils.get_safe_y(tree_view)
 	-- Holds the path passed to Go for the eventual new file/dir
 	local filedir_path
 	-- A true/false if scanlist is empty
@@ -695,7 +637,7 @@ local function create_filedir(filedir_name, make_dir)
 			filedir_path = filepath.Join(scanlist[y].abspath, filedir_name)
 		else
 			-- The current index is a file, so strip its name and join ours onto it
-			filedir_path = dirname_and_join(scanlist[y].abspath, filedir_name)
+			filedir_path = utils.dirname_and_join(scanlist[y].abspath, filedir_name)
 		end
 	else
 		-- if nothing in the list, or cursor is on top of "..", use the current dir
@@ -877,14 +819,14 @@ end
 
 function uncompress_at_cursor()
 	if micro.CurPane() == tree_view then
-		uncompress_target(get_safe_y())
+		uncompress_target(utils.get_safe_y(tree_view))
 	end
 end
 
 function compress_at_cursor()
 	if micro.CurPane() == tree_view then
 		-- False to not delete y
-		compress_target(get_safe_y(), false)
+		compress_target(utils.get_safe_y(tree_view), false)
 	end
 end
 
@@ -897,7 +839,7 @@ function goto_prev_dir()
 		return
 	end
 
-	local cur_y = get_safe_y()
+	local cur_y = utils.get_safe_y(tree_view)
 	-- If they try to run it on the ".." do nothing
 	if cur_y ~= 0 then
 		local move_count = 0
@@ -907,7 +849,7 @@ function goto_prev_dir()
 			if scanlist[i].dirmsg == icons['dir'] or scanlist[i].dirmsg == icons['dir_open'] then
 				-- Jump to its parent (the ownership)
 				tree_view.Cursor:UpN(move_count)
-				select_line()
+				utils.select_line(tree_view)
 				break
 			end
 		end
@@ -923,7 +865,7 @@ function goto_next_dir()
 		return
 	end
 
-	local cur_y = get_safe_y()
+	local cur_y = utils.get_safe_y(tree_view)
 	local move_count = 0
 	-- If they try to goto_next on "..", pretends the cursor is valid
 	if cur_y == 0 then
@@ -938,7 +880,7 @@ function goto_next_dir()
 			if scanlist[i].dirmsg == icons['dir'] or scanlist[i].dirmsg == icons['dir_open'] then
 				-- Jump to its parent (the ownership)
 				tree_view.Cursor:DownN(move_count)
-				select_line()
+				utils.select_line(tree_view)
 				break
 			end
 		end
@@ -952,12 +894,12 @@ function goto_parent_dir()
 		return
 	end
 
-	local cur_y = get_safe_y()
+	local cur_y = utils.get_safe_y(tree_view)
 	-- Check if the cursor is even in a valid location for jumping to the owner
 	if cur_y > 0 then
 		-- Jump to its parent (the ownership)
 		tree_view.Cursor:UpN(cur_y - scanlist[cur_y].owner)
-		select_line()
+		utils.select_line(tree_view)
 	end
 end
 
@@ -983,7 +925,7 @@ end
 -- Select the line at the cursor
 local function selectline_if_tree(view)
 	if view == tree_view then
-		select_line()
+		utils.select_line(tree_view)
 	end
 end
 
@@ -994,7 +936,7 @@ local function aftermove_if_tree(view)
 			-- If it went past the "..", move back onto it
 			tree_view.Cursor:DownN(2 - tree_view.Cursor.Loc.Y)
 		end
-		select_line()
+		utils.select_line(tree_view)
 	end
 end
 
@@ -1029,7 +971,7 @@ end
 function preCursorDown(view)
 	if view == tree_view then
 		tree_view.Cursor:Down()
-		select_line()
+		utils.select_line(tree_view)
 		-- Don't actually go down, as it moves 2 indicies for some reason
 		return false
 	end
@@ -1120,7 +1062,7 @@ function preCursorLeft(view)
 	if view == tree_view then
 		-- +1 because of Go's zero-based index
 		-- False to not delete y
-		compress_target(get_safe_y(), false)
+		compress_target(utils.get_safe_y(tree_view), false)
 		-- Don't actually move the cursor, as it messes with selection
 		return false
 	end
@@ -1130,7 +1072,7 @@ end
 function preCursorRight(view)
 	if view == tree_view then
 		-- +1 because of Go's zero-based index
-		uncompress_target(get_safe_y())
+		uncompress_target(utils.get_safe_y(tree_view))
 		-- Don't actually move the cursor, as it messes with selection
 		return false
 	end
@@ -1164,7 +1106,7 @@ end
 function preInsertNewline(view)
 	if view == tree_view then
 		-- +1 because of Go's zero-based index
-		uncompress_target(get_safe_y())
+		uncompress_target(utils.get_safe_y(tree_view))
 		-- Don't actually move the cursor, as it messes with selection
 		return false
 	end

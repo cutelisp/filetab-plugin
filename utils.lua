@@ -1,3 +1,66 @@
+-- A short "get y" for when acting on the scanlist
+-- Needed since we don't store the first 3 visible indicies in scanlist
+local function get_safe_y(tree_view, optional_y)
+	-- Default to 0 so we can check against and see if it's bad
+	local y = 0
+	-- Make the passed y optional
+	if optional_y == nil then
+		-- Default to cursor's Y loc if nothing was passed, instead of declaring another y
+		optional_y = tree_view.Cursor.Loc.Y
+	end
+	-- 0/1/2 would be the top "dir, separator, .." so check if it's past
+	if optional_y > 2 then
+		-- -2 to conform to our scanlist, since zero-based Go index & Lua's one-based
+		y = tree_view.Cursor.Loc.Y - 2
+	end
+	return y
+end
+
+
+-- Hightlights the line when you move the cursor up/down
+local function select_line(tree_view, last_y)
+	-- Make last_y optional
+	if last_y ~= nil then
+		-- Don't let them move past ".." by checking the result first
+		if last_y > 1 then
+			-- If the last position was valid, move back to it
+			tree_view.Cursor.Loc.Y = last_y
+		end
+	elseif tree_view.Cursor.Loc.Y < 2 then
+		-- Put the cursor on the ".." if it's above it
+		tree_view.Cursor.Loc.Y = 2
+	end
+
+	-- Puts the cursor back in bounds (if it isn't) for safety
+	tree_view.Cursor:Relocate()
+
+	-- Makes sure the cursor is visible (if it isn't)
+	-- (false) means no callback
+	tree_view:Center()
+
+	-- Highlight the current line where the cursor is
+	tree_view.Cursor:SelectLine()
+end
+
+-- Repeats a string x times, then returns it concatenated into one string
+local function repeat_str(str, len)
+	-- Do NOT try to concat in a loop, it freezes micro...
+	-- instead, use a temporary table to hold values
+	local string_table = {}
+	for i = 1, len do
+		string_table[i] = str
+	end
+	-- Return the single string of repeated characters
+	return table.concat(string_table)
+end
+
+
+-- Joins the target dir's leading path to the passed name
+function dirname_and_join(path, join_name)
+    local leading_path = filepath.Dir(path)
+    return filepath.Join(leading_path, join_name)
+end
+
 -- Stat a path to check if it exists, returning true/false
 local function is_path(path)
 	local go_os = import('os')
@@ -55,6 +118,10 @@ local function is_scanlist_empty(scanlist)
 end
 
 return {
+	get_safe_y = get_safe_y,
+	select_line = select_line,
+	repeat_str = repeat_str,
+	dirname_and_join = dirname_and_join,
 	is_path = is_path,
 	is_dir = is_dir, 
 	is_dotfile = is_dotfile,
