@@ -8,6 +8,8 @@ local os = import('os')
 local filepath = import('path/filepath')
 
 local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
+local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
+
 
 function Icons()
 	return icon.Icons()
@@ -65,23 +67,7 @@ local function repeat_str(str, len)
 	return table.concat(string_table)
 end
 
--- A check for if a path is a dir
-local function is_dir(path)
-	-- Used for checking if dir
-	local golib_os = import('os')
-	-- Returns a FileInfo on the current file/path
-	local file_info, stat_error = golib_os.Stat(path)
-	-- Wrap in nil check for file/dirs without read permissions
-	if file_info ~= nil then
-		-- Returns true/false if it's a dir
-		return file_info:IsDir()
-	else
-		-- Couldn't stat the file/dir, usually because no read permissions
-		micro.InfoBar():Error('Error checking if is dir: ', stat_error)
-		-- Nil since we can't read the path
-		return nil
-	end
-end
+
 
 -- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
 -- aka this returns a list of gitignored files (but for whatever VCS is found)
@@ -124,15 +110,7 @@ local function get_basename(path)
 	end
 end
 
--- Returns true/false if the file is a dotfile
-local function is_dotfile(file_name)
-	-- Check if the filename starts with a dot
-	if string.sub(file_name, 1, 1) == '.' then
-		return true
-	else
-		return false
-	end
-end
+
 
 -- Structures the output of the scanned directory content to be used in the scanlist table
 -- This is useful for both initial creation of the tree, and when nesting with uncompress_target()
@@ -155,7 +133,7 @@ local function get_scanlist(dir, ownership, indent_n)
 
 	local function get_results_object(file_name)
 		local abs_path = filepath.Join(dir, file_name)
-		local dirmsg = (is_dir(abs_path) and icons['dir'] or GetIcon(file_name))
+		local dirmsg = (utils.is_dir(micro, abs_path) and icons['dir'] or GetIcon(file_name))
 
 		return new_listobj(abs_path, dirmsg, ownership, indent_n)
 	end
@@ -185,7 +163,7 @@ local function get_scanlist(dir, ownership, indent_n)
 		local showfile = true
 		filename = dir_scan[i]:Name()
 		-- If we should not show dotfiles, and this is a dotfile, don't show
-		if not show_dotfiles and is_dotfile(filename) then
+		if not show_dotfiles and utils.is_dotfile(filename) then
 			showfile = false
 		end
 		-- If we should not show ignored files, and this is an ignored file, don't show
@@ -194,7 +172,7 @@ local function get_scanlist(dir, ownership, indent_n)
 		end
 		if showfile then
 			-- This file is good to show, proceed
-			if folders_first and not is_dir(filepath.Join(dir, filename)) then
+			if folders_first and not utils.is_dir(micro, filepath.Join(dir, filename)) then
 				-- If folders_first and this is a file, add it to (temporary) files
 				files[#files + 1] = get_results_object(filename)
 			else
@@ -723,10 +701,10 @@ local function create_filedir(filedir_name, make_dir)
 	-- Holds the path passed to Go for the eventual new file/dir
 	local filedir_path
 	-- A true/false if scanlist is empty
-	local scanlist_empty = scanlist_is_empty()
+	local is_scanlist_empty = utils.is_scanlist_empty(scanlist)
 
 	-- Check there's actually anything in the list, and that they're not on the ".."
-	if not scanlist_empty and y ~= 0 then
+	if not is_scanlist_empty and y ~= 0 then
 		-- If they're inserting on a folder, don't strip its path
 		if scanlist[y].dirmsg == icons['dir'] or scanlist[y].dirmsg == icons['dir_open'] then
 			-- Join our new file/dir onto the dir
@@ -773,7 +751,7 @@ local function create_filedir(filedir_name, make_dir)
 
 	-- Only insert to scanlist if not created into a compressed dir, since it'd be hidden if it was
 	-- Wrap the below checks so a y=0 doesn't break something
-	if not scanlist_empty and y ~= 0 then
+	if not is_scanlist_empty and y ~= 0 then
 		-- +1 so it's highlighting the new file/dir
 		last_y = tree_view.Cursor.Loc.Y + 1
 
