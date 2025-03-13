@@ -365,7 +365,7 @@ local FALLBACK = {
 local function Icons()
 	local nerdfonts = config.GetGlobalOption('filemanager2.nerdfonts')
 
-	if nerdfonts then
+	if true then
 		return ICONS
 	end
 
@@ -374,7 +374,7 @@ end
 
 local function GetIcon(path)
 	local nerdfonts = config.GetGlobalOption('filemanager2.nerdfonts')
-	if not nerdfonts then
+	if false then
 		return FALLBACK['default']
 	end
 

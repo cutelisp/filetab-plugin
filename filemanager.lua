@@ -9,6 +9,7 @@ local filepath = import('path/filepath')
 
 local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
+local entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
 
 
 function Icons()
@@ -35,75 +36,8 @@ local tree_view
 local current_dir = os.Getwd()
 -- Keep track of current highest visible indent to resize width appropriately
 local highest_visible_indent = 0
--- Holds a table of paths -- objects from new_listobj() calls
+-- Holds a table of entries -- objects from entry.lua
 local scanlist = {}
-
--- Get a new object used when adding to scanlist
-local function new_listobj(path, d, o, i)
-	return {
-		['abspath'] = path,
-		['directory_symbol'] = d,
-		['owner'] = o,
-		['indent'] = i,
-		-- Since decreasing/increasing is common, we include these with the object
-		['decrease_owner'] = function(self, minus_num)
-			self.owner = self.owner - minus_num
-		end,
-		['increase_owner'] = function(self, plus_num)
-			self.owner = self.owner + plus_num
-		end,
-		['contents'] = function(self)
-			local content 
-			if self.directory_symbol ~= nil then
-				-- Add the + or - to the left to signify if it's compressed or not
-				-- Add a forward slash to the right to signify it's a dir
-				content = self.directory_symbol .. ' ' .. utils.get_basename(self.abspath) .. '/'
-			else
-				-- Use the basename from the full path for display
-				-- Two spaces to align with any directories, instead of being "off"
-				-- content = self.directory_symbol .. '  ' .. utils.get_basename(scanlist[i].abspath) TODO, I commented cuz I think this line makes no sense (I did changes in the if above)
-			end
-
-			if self.owner > 0 then
-				-- Add a space and repeat it * the indent number
-				content = utils.repeat_str(' ', 2 * self.indent) .. content
-			end
-			return content
-		end,
-	}
-end
-
-
--- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
--- aka this returns a list of gitignored files (but for whatever VCS is found)
-local function get_ignored_files(tar_dir)
-	local icons = Icons()
-
-	-- True/false if the target dir returns a non-fatal error when checked with 'git status'
-	local function has_git()
-		local git_rp_results = shell.ExecCommand('git  -C "' .. tar_dir .. '" rev-parse --is-inside-work-tree')
-		return git_rp_results:match('^true%s*$')
-	end
-	local readout_results = {}
-	-- TODO: Support more than just Git, such as Mercurial or SVN
-	if has_git() then
-		-- If the dir is a git dir, get all ignored in the dir
-		local git_ls_results =
-		shell.ExecCommand('git -C "' .. tar_dir .. '" ls-files . --ignored --exclude-standard --others --directory')
-		-- Cut off the newline that is at the end of each result
-		for split_results in string.gmatch(git_ls_results, '([^\r\n]' .. icons['dir'] .. ')') do
-			-- git ls-files adds a trailing slash if it's a dir, so we remove it (if it is one)
-			readout_results[#readout_results + 1] = (
-				string.sub(split_results, -1) == '/' and string.sub(split_results, 1, -2) or split_results
-			)
-		end
-	end
-
-	-- Make sure we return a table
-	return readout_results
-end
-
-
 
 
 -- Structures the output of the scanned directory content to be used in the scanlist table
@@ -113,33 +47,33 @@ local function get_scanlist(dir, ownership, indent_n)
 
 	local golib_ioutil = import('ioutil')
 	-- Gets a list of all the files in the current dir
-	local dir_scan, scan_error = golib_ioutil.ReadDir(dir)
+	local all_files, scan_error = golib_ioutil.ReadDir(dir)
 
-	-- dir_scan will be nil if the directory is read-protected (no permissions)
-	if dir_scan == nil then
+	-- files will be nil if the directory is read-protected (no permissions)
+	if all_files == nil then
 		micro.InfoBar():Error('Error scanning dir: ', scan_error)
 		return nil
 	end
 
-	-- The list of files to be returned (and eventually put in the view)
-	local results = {}
+	-- The list of entries to be returned (and eventually put in the view)
+	local entries = {}
+	-- The list of files to be added to entries
 	local files = {}
 
-	local function get_results_object(file_name)
+	local function get_entry(file_name)
 		local abs_path = filepath.Join(dir, file_name)
-		local directory_symbol = (utils.is_dir(micro, abs_path) and icons['dir'] or GetIcon(file_name))
-
-		return new_listobj(abs_path, directory_symbol, ownership, indent_n)
+		local icon = (utils.is_dir(micro, abs_path) and icons['dir'] or GetIcon(file_name))
+		local new_entry = entry:new(abs_path, icon, ownership, indent_n)
+		return new_entry
 	end
 
 	-- Save so we don't have to rerun GetOption a bunch
 	local show_dotfiles = config.GetGlobalOption('filemanager.showdotfiles')
 	local show_ignored = config.GetGlobalOption('filemanager.showignored')
-	local folders_first = config.GetGlobalOption('filemanager.foldersfirst')
 
 	-- The list of VCS-ignored files (if any)
 	-- Only bother getting ignored files if we're not showing ignored
-	local ignored_files = (not show_ignored and get_ignored_files(dir) or {})
+	local ignored_files = (not show_ignored and utils.get_ignored_files(dir) or {})
 	-- True/false if the file is an ignored file
 	local function is_ignored_file(filename)
 		for i = 1, #ignored_files do
@@ -153,9 +87,9 @@ local function get_scanlist(dir, ownership, indent_n)
 	-- Hold the current scan's filename in most of the loops below
 	local filename
 
-	for i = 1, #dir_scan do
+	for i = 1, #all_files do
 		local showfile = true
-		filename = dir_scan[i]:Name()
+		filename = all_files[i]:Name()
 		-- If we should not show dotfiles, and this is a dotfile, don't show
 		if not show_dotfiles and utils.is_dotfile(filename) then
 			showfile = false
@@ -164,40 +98,31 @@ local function get_scanlist(dir, ownership, indent_n)
 		if not show_ignored and is_ignored_file(filename) then
 			showfile = false
 		end
-		if showfile then
-			-- This file is good to show, proceed
-			if folders_first and not utils.is_dir(micro, filepath.Join(dir, filename)) then
-				-- If folders_first and this is a file, add it to (temporary) files
-				files[#files + 1] = get_results_object(filename)
-			else
-				-- Otherwise, add to results
-				results[#results + 1] = get_results_object(filename)
-			end
+
+		if not utils.is_dir(micro, filepath.Join(dir, filename)) then
+			-- If this is a file, add it to (temporary) files
+			files[#files + 1] = get_entry(filename)
+		else
+			-- Otherwise, add to entries
+			entries[#entries + 1] = get_entry(filename)
 		end
+
 	end
 	if #files > 0 then
 		-- Append any files to results, now that all folders have been added
-		-- files will be > 0 only if folders_first and there are files
-		for i = 1, #files do
-			results[#results + 1] = files[i]
+		for i = 1, #entries do
+			entries[#entries + 1] = files[i]
 		end
 	end
 
-	-- Return the list of scanned files
-	return results
+	-- Return the list of scanned entries
+	return entries
 end
 
 
 
 
--- Simple true/false if scanlist is currently empty
-local function scanlist_is_empty()
-	if next(scanlist) == nil then
-		return true
-	else
-		return false
-	end
-end
+
 
 local function refresh_view()
 	local icons = Icons()
@@ -205,8 +130,8 @@ local function refresh_view()
 	clear_messenger()
 
 	-- If it's less than 30, just use 30 for width. Don't want it too small
-	if tree_view:GetView().Width < 30 then
-		tree_view:ResizePane(30)
+	if tree_view:GetView().Width < utils.get_tree_min_with() then
+		tree_view:ResizePane(utils.get_tree_min_with())
 	end
 
 	-- Delete everything in the view/buffer
@@ -227,11 +152,11 @@ local function refresh_view()
 	for i = 1, #scanlist do
 		-- Newlines are needed for all inserts except the last
 		-- If you insert a newline on the last, it leaves a blank spot at the bottom
-		content = scanlist[i]:contents() .. (i < #scanlist and '\n' or '')
+		content = scanlist[i]:get_content() .. (i < #scanlist and '\n' or '')
 
 		-- Insert line-by-line to avoid out-of-bounds on big folders
 		-- +2 so we skip the 0/1/2 positions that hold the top dir/separator/..
-		tree_view.Buf.EventHandler:Insert(buffer.Loc(0, i + 2), content)
+		tree_view.Buf.EventHandler:Insert(buffer.Loc(0, i + 2), content ) 
 	end
 
 	-- Resizes all views after messing with ours
@@ -249,7 +174,7 @@ end
 
 local function refresh_and_select()
 	-- Save the cursor position before messing with the view..
-	-- because changing contents in the view causes the Y loc to move
+	-- because changing get_content in the view causes the Y loc to move
 	local last_y = tree_view.Cursor.Loc.Y
 	-- Actually refresh
 	refresh_view()
@@ -262,12 +187,12 @@ local function compress_target(y, delete_y)
 	local icons = Icons()
 
 	-- Can't compress the top stuff, or if there's nothing there, so exit early
-	if y == 0 or scanlist_is_empty() then
+	if y == 0 or utils.is_scanlist_empty(scanlist) then
 		return
 	end
 	-- Check if the target is a dir, since files don't have anything to compress
 	-- Also make sure it's actually an uncompressed dir by checking the gutter message
-	if scanlist[y].directory_symbol == icons['dir_open'] then
+	if scanlist[y].icon == icons['dir_open'] then
 		local delete_index
 		-- Add the original target y to stuff to delete
 		local delete_under = { [1] = y }
@@ -288,7 +213,7 @@ local function compress_target(y, delete_y)
 						-- Keep count of total deleted (can't use #delete_under because it's for deleted dir count)
 						del_count = del_count + 1
 						-- Check if an uncompressed dir
-						if scanlist[i].directory_symbol == icons['dir_open'] then
+						if scanlist[i].icon == icons['dir_open'] then
 							-- Add the index to stuff to delete, since it holds nested content
 							delete_under[#delete_under + 1] = i
 						end
@@ -324,7 +249,7 @@ local function compress_target(y, delete_y)
 		-- If not deleting, then update the gutter message to be + to signify compressed
 		if not delete_y then
 			-- Update the dir message
-			scanlist[y].directory_symbol = icons['dir']
+			scanlist[y].icon = icons['dir']
 		end
 	elseif config.GetGlobalOption('filemanager.compressparent') and not delete_y then
 		goto_parent_dir()
@@ -355,9 +280,9 @@ local function compress_target(y, delete_y)
 		scanlist = second_table
 	end
 
-	if tree_view:GetView().Width > (30 + highest_visible_indent) then
+	if tree_view:GetView().Width > (utils.get_tree_min_with() + highest_visible_indent) then
 		-- Shave off some width
-		tree_view:ResizePane(30 + highest_visible_indent)
+		tree_view:ResizePane(utils.get_tree_min_with() + highest_visible_indent)
 	end
 
 	refresh_and_select()
@@ -370,7 +295,7 @@ function prompt_delete_at_cursor()
 
 	local y = utils.get_safe_y(tree_view)
 	-- Don't let them delete the top 3 index dir/separator/..
-	if y == 0 or scanlist_is_empty() then
+	if y == 0 or utils.is_scanlist_empty(scanlist) then
 		micro.InfoBar():Error('You can\'t delete that')
 		-- Exit early if there's nothing to delete
 		return
@@ -378,7 +303,7 @@ function prompt_delete_at_cursor()
 
 	micro.InfoBar():YNPrompt(
 		'Do you want to delete the '
-			.. (scanlist[y].directory_symbol == icons['dir'] and 'dir' or 'file')
+			.. (scanlist[y].icon == icons['dir'] and 'dir' or 'file')
 			.. ' "'
 			.. scanlist[y].abspath
 			.. '"? ',
@@ -409,7 +334,7 @@ local function update_current_dir(path)
 	-- Clear the highest since this is a full refresh
 	highest_visible_indent = 0
 	-- Set the width back to 30
-	tree_view:ResizePane(30)
+	tree_view:ResizePane(utils.get_tree_min_with())
 	-- Update the current dir to the new path
 	current_dir = path
 
@@ -455,10 +380,10 @@ local function try_open_at_y(y, direction)
 	-- 2 is the zero-based index of ".."
 	if y == 2 then
 		go_back_dir()
-	elseif y > 2 and not scanlist_is_empty() then
+	elseif y > 2 and not utils.is_scanlist_empty(scanlist) then
 		-- -2 to conform to our scanlist "missing" first 3 indicies
 		y = y - 2
-		if scanlist[y].directory_symbol == icons['dir'] or scanlist[y].directory_symbol == icons['dir_open'] then
+		if scanlist[y].icon == icons['dir'] or scanlist[y].icon == icons['dir_open'] then
 			-- if passed path is a directory, update the current dir to be one deeper..
 			update_current_dir(scanlist[y].abspath)
 		else
@@ -479,16 +404,16 @@ local function try_open_at_y(y, direction)
 	end
 end
 
--- Opens the dir's contents nested under itself
+-- Opens the dir's get_content nested under itself
 local function uncompress_target(y)
 	local icons = Icons()
 
 	-- Exit early if on the top 3 non-list items
-	if y == 0 or scanlist_is_empty() then
+	if y == 0 or utils.is_scanlist_empty(scanlist) then
 		return
 	end
 	-- Only uncompress if it's a dir and it's not already uncompressed
-	if scanlist[y].directory_symbol == icons['dir'] then
+	if scanlist[y].icon == icons['dir'] then
 		-- Get a new scanlist with results from the scan in the target dir
 		local scan_results = get_scanlist(scanlist[y].abspath, y, scanlist[y].indent + 1)
 		-- Don't run any of this if there's nothing in the dir we scanned, pointless
@@ -523,7 +448,7 @@ local function uncompress_target(y)
 		end
 
 		-- Change to minus to signify it's uncompressed
-		scanlist[y].directory_symbol = icons['dir_open']
+		scanlist[y].icon = icons['dir_open']
 
 		-- Check if we actually need to resize, or if we're nesting at the same indent
 		-- Also check if there's anything in the dir, as we don't need to expand on an empty dir
@@ -617,7 +542,7 @@ local function create_filedir(filedir_name, make_dir)
 	-- Check there's actually anything in the list, and that they're not on the ".."
 	if not is_scanlist_empty and y ~= 0 then
 		-- If they're inserting on a folder, don't strip its path
-		if scanlist[y].directory_symbol == icons['dir'] or scanlist[y].directory_symbol == icons['dir_open'] then
+		if scanlist[y].icon == icons['dir'] or scanlist[y].icon == icons['dir_open'] then
 			-- Join our new file/dir onto the dir
 			filedir_path = filepath.Join(scanlist[y].abspath, filedir_name)
 		else
@@ -656,7 +581,7 @@ local function create_filedir(filedir_name, make_dir)
 	end
 
 	-- Creates a sort of default object, to be modified below
-	local new_filedir = new_listobj(filedir_path, (make_dir and icons['dir'] or GetIcon(filedir_name)), 0, 0)
+	local new_filedir = entry:new(filedir_path, (make_dir and icons['dir'] or GetIcon(filedir_name)), 0, 0)
 	-- Refresh with our new value(s)
 	local last_y
 
@@ -667,11 +592,11 @@ local function create_filedir(filedir_name, make_dir)
 		last_y = tree_view.Cursor.Loc.Y + 1
 
 		-- Only actually add the object to the list if it's not created on an uncompressed folder
-		if scanlist[y].directory_symbol == icons['dir'] then
+		if scanlist[y].icon == icons['dir'] then
 			-- Exit early, since it was created into an uncompressed folder
 
 			return
-		elseif scanlist[y].directory_symbol == icons['dir_open'] then
+		elseif scanlist[y].icon == icons['dir_open'] then
 			-- Check if created on top of an uncompressed folder
 			-- Change ownership to the folder it was created on top of..
 			-- otherwise, the ownership would be incorrect
@@ -756,7 +681,7 @@ local function open_tree()
 	tree_view = micro.CurPane()
 
 	-- Set the width of tree_view to 30% & lock it
-	tree_view:ResizePane(30)
+	tree_view:ResizePane(utils.get_tree_min_with())
 	-- Set the type to unsavable
 	-- tree_view.Buf.Type = buffer.BTLog
 	tree_view.Buf.Type.Scratch = true
@@ -775,7 +700,7 @@ local function open_tree()
 	tree_view.Buf:SetOptionNative('statusformatl', 'filemanager')
 	tree_view.Buf:SetOptionNative('scrollbar', false)
 
-	-- Fill the scanlist, and then print its contents to tree_view
+	-- Fill the scanlist, and then print its get_content to tree_view
 	update_current_dir(os.Getwd())
 end
 
@@ -820,7 +745,7 @@ end
 function goto_prev_dir()
 	local icons = Icons()
 
-	if micro.CurPane() ~= tree_view or scanlist_is_empty() then
+	if micro.CurPane() ~= tree_view or utils.is_scanlist_empty(scanlist) then
 		return
 	end
 
@@ -831,7 +756,7 @@ function goto_prev_dir()
 		for i = cur_y - 1, 1, -1 do
 			move_count = move_count + 1
 			-- If a dir, stop counting
-			if scanlist[i].directory_symbol == icons['dir'] or scanlist[i].directory_symbol == icons['dir_open'] then
+			if scanlist[i].icon == icons['dir'] or scanlist[i].icon == icons['dir_open'] then
 				-- Jump to its parent (the ownership)
 				tree_view.Cursor:UpN(move_count)
 				utils.select_line(tree_view)
@@ -846,7 +771,7 @@ end
 function goto_next_dir()
 	local icons = Icons()
 
-	if micro.CurPane() ~= tree_view or scanlist_is_empty() then
+	if micro.CurPane() ~= tree_view or utils.is_scanlist_empty(scanlist) then
 		return
 	end
 
@@ -862,7 +787,7 @@ function goto_next_dir()
 		for i = cur_y + 1, #scanlist do
 			move_count = move_count + 1
 			-- If a dir, stop counting
-			if scanlist[i].directory_symbol == icons['dir'] or scanlist[i].directory_symbol == icons['dir_open'] then
+			if scanlist[i].icon == icons['dir'] or scanlist[i].icon == icons['dir_open'] then
 				-- Jump to its parent (the ownership)
 				tree_view.Cursor:DownN(move_count)
 				utils.select_line(tree_view)
@@ -875,7 +800,7 @@ end
 -- Goes to the parent directory (if any)
 -- Not local so it can be keybound
 function goto_parent_dir()
-	if micro.CurPane() ~= tree_view or scanlist_is_empty() then
+	if micro.CurPane() ~= tree_view or utils.is_scanlist_empty(scanlist) then
 		return
 	end
 
@@ -889,7 +814,7 @@ function goto_parent_dir()
 end
 
 function try_open_at_cursor()
-	if micro.CurPane() ~= tree_view or scanlist_is_empty() then
+	if micro.CurPane() ~= tree_view or utils.is_scanlist_empty(scanlist) then
 		return
 	end
 
@@ -1286,8 +1211,8 @@ function init()
 	config.RegisterCommonOption('filemanager', 'showignored', true)
 	-- Let the user disable going to parent directory via left arrow key when file selected (not directory)
 	config.RegisterCommonOption('filemanager', 'compressparent', true)
-	-- Let the user choose to list sub-folders first when listing the contents of a folder
-	config.RegisterCommonOption('filemanager', 'foldersfirst', true)
+	-- Let the user choose to list sub-folders first when listing the get_content of a folder
+	--config.RegisterCommonOption('filemanager', 'foldersfirst', true)
 	-- Lets the user have the filetree auto-open any time Micro is opened
 	-- false by default, as it's a rather noticable user-facing change
 	config.RegisterCommonOption('filemanager', 'openonstart', true)

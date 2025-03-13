@@ -1,3 +1,37 @@
+-- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
+-- aka this returns a list of gitignored files (but for whatever VCS is found)
+local function get_ignored_files(tar_dir)
+	local icons = Icons()
+
+	-- True/false if the target dir returns a non-fatal error when checked with 'git status'
+	local function has_git()
+		local git_rp_results = shell.ExecCommand('git  -C "' .. tar_dir .. '" rev-parse --is-inside-work-tree')
+		return git_rp_results:match('^true%s*$')
+	end
+	local readout_results = {}
+	-- TODO: Support more than just Git, such as Mercurial or SVN
+	if has_git() then
+		-- If the dir is a git dir, get all ignored in the dir
+		local git_ls_results =
+		shell.ExecCommand('git -C "' .. tar_dir .. '" ls-files . --ignored --exclude-standard --others --directory')
+		-- Cut off the newline that is at the end of each result
+		for split_results in string.gmatch(git_ls_results, '([^\r\n]' .. icons['dir'] .. ')') do
+			-- git ls-files adds a trailing slash if it's a dir, so we remove it (if it is one)
+			readout_results[#readout_results + 1] = (
+				string.sub(split_results, -1) == '/' and string.sub(split_results, 1, -2) or split_results
+			)
+		end
+	end
+
+	-- Make sure we return a table
+	return readout_results
+end
+
+-- Consant for the min with of tree
+local function get_tree_min_with()
+	return 30
+end
+
 -- A short "get y" for when acting on the scanlist
 -- Needed since we don't store the first 3 visible indicies in scanlist
 local function get_safe_y(tree_view, optional_y)
@@ -129,8 +163,17 @@ local function is_scanlist_empty(scanlist)
 		return false
 	end
 end
-
+-- Simple true/false if scanlist is currently empty
+local function scanlist_is_empty()
+	if next(scanlist) == nil then
+		return true
+	else
+		return false
+	end
+end
 return {
+	get_ignored_files = get_ignored_files,
+	get_tree_min_with = get_tree_min_with,
 	get_basename = get_basename,
 	get_safe_y = get_safe_y,
 	select_line = select_line,
