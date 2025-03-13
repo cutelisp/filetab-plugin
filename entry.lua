@@ -36,7 +36,7 @@ end
 function entry:get_content()
     -- Add the icon base on path
     -- Add a forward slash to the right to signify it's a dir
-    local content = self.icon .. ' ' .. utils.get_basename(self.abspath) .. (self:is_dir() and '' or '/')
+    local content = self.icon .. ' ' .. utils.get_basename(self.abspath) .. (self:is_dir() and '/' or '')
 
     if self.owner > 0 then
         -- Add a space and repeat it * the indent number

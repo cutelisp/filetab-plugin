@@ -110,7 +110,7 @@ local function get_scanlist(dir, ownership, indent_n)
 	end
 	if #files > 0 then
 		-- Append any files to results, now that all folders have been added
-		for i = 1, #entries do
+		for i = 1, #files do
 			entries[#entries + 1] = files[i]
 		end
 	end
