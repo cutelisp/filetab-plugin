@@ -1,15 +1,12 @@
 local config = import('micro/config')
 local micro = import('micro')
 local os = import('os')
-
-
+local golib_ioutil = import('ioutil')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
 local icon_utils = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 local icons = icon_utils.Icons()
 local buffer = import('micro/buffer')
-
 local filepath = import('path/filepath')
-
 local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
 
 -- Entry is the object of scanlist
@@ -24,10 +21,15 @@ function Tab:new(file_name, current_directory)
     instance.current_directory = current_directory
     instance.is_open = false
     instance.entry_list = {}
-
-
     return instance
 end
+
+
+-- Set the width of tab to num & lock it
+function Tab:get_cursor_y(num)
+	return self.curPane.Cursor.Loc.Y
+end
+
 
 -- Set the width of tab to num & lock it
 function Tab:resize(num)
@@ -45,10 +47,6 @@ function Tab:clear()
 end
 
 
-
-
-
-
 -- close_tree will close the tree plugin view and release memory.
 function Tab:close()
 	if self.curPane ~= nil then
@@ -56,7 +54,6 @@ function Tab:close()
         self.is_open = false
 	end
 end
-
 
 
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
@@ -81,7 +78,6 @@ function Tab:setup_settings()
 end
 
 
-
 -- Delete everything in the view/buffer
 function Tab:print_header()--todo
     -- Current dir
@@ -93,15 +89,34 @@ function Tab:print_header()--todo
 end
 
 
+-- Highlights the line when you move the cursor up/down
+function Tab:move_cursor(line_number)
+
+    -- Ensure line_number is within valid bounds
+    if line_number and line_number > 1 then
+        self.curPane.Cursor.Loc.Y = line_number
+    else
+        self.curPane.Cursor.Loc.Y = 2
+    end
+
+    -- Puts the cursor back in bounds (if it isn't) for safety
+    self.curPane.Cursor:Relocate()
+
+    -- Makes sure the cursor is visible (if it isn't)
+    -- (false) means no callback
+    self.curPane:Center()
+
+    -- Highlight the current line where the cursor is
+    self.curPane.Cursor:SelectLine()
+end
 
 
+function Tab:view_refresh()
 
-function Tab:view_refresh(new_path)
+	local cursor_y = self:get_cursor_y()
 
 	self:resize(self.min_width)
 	self:clear()
-
-  
 
 
 	self:print_header()
@@ -121,9 +136,9 @@ function Tab:view_refresh(new_path)
 
 	-- Resizes all views after messing with ours
 	self.curPane:Tab():Resize() -- todo idk wts this
-end
+	self:move_cursor(cursor_y)
 
-local golib_ioutil = import('ioutil')
+end
 
 
 -- Structures the output of the scanned directory content to be used in the scanlist table
@@ -168,14 +183,12 @@ function Tab:get_entry_list(directory, ownership, indent_level)
 	return entries_directories
 end
 
--- Moves the cursor to the ".." in tree_view
-function Tab:move_cursor_top()
-	-- 2 is the position of the ".."
-	self.curPane.Cursor.Loc.Y = 2
 
-	-- select the line after moving
-	utils.select_line(self.curPane)
+-- Moves the cursor to the ".." in tree_view (2 beacuase ".." it's on 3rd line)
+function Tab:move_cursor_top()
+	self:move_cursor(2)
 end
+
 
 -- Changes the current directoty, get the new entry_list, refresh the view and move the cursor to the ".." by default
 function Tab:view_show(directory)
@@ -187,7 +200,6 @@ function Tab:view_show(directory)
 	self:view_refresh()
 	self:move_cursor_top()
 end
-
 
 -- open_tree setup's the view
 function Tab:open_tree()

@@ -43,66 +43,6 @@ local highest_visible_indent = 0
 -- Holds a table of entries, entry is the object of entry.lua
 
 
--- Structures the output of the scanned directory content to be used in the scanlist table
--- This is useful for both initial creation of the tree, and when nesting with uncompress_target()
-local function get_scanlist(directory, ownership, indent_level)
-	local show_dotfiles = config.GetGlobalOption('filemanager.showdotfiles')
-	local show_ignored_files = config.GetGlobalOption('filemanager.showignored') --TODO not working ignored_files not fetching correctly ig
-
-	-- Gets a list of all the files names in the current dir
-	local all_files_names, error_message = utils.get_files_names(directory, true, true)
-
-	-- files will be nil if the directory is read-protected (no permissions)
-	if all_files_names == nil then
-		micro.InfoBar():Error('Error scanning dir: ', directory, ' | ', error_message)
-		return nil
-	end
-
-	-- The list of directories & files entries to be returned (and eventually put in the view)
-	local entries_directories = {}
-	local entries_files = {}
-	local entry_name
-
-	for i = 1, #all_files_names do
-		entry_name = all_files_names[i]
-
-		local new_entry = Entry:new(entry_name, filepath.Join(directory, entry_name), ownership, indent_level)
-
-		-- Logic to make sure all directories are appended first to entries table so they are shown first
-		if not new_entry.is_dir then
-			-- If this is a file, add it to (temporary) files
-			entries_files[#entries_files + 1] = new_entry
-		else
-			-- Otherwise, add to entries
-			entries_directories[#entries_directories + 1] = new_entry
-		end
-	end
-
-	-- Append all file entries to directories entries (So they can be correctly sorted)
-	utils.get_appended_tables(entries_directories, entries_files)
-
-	-- Return all entries (directories + files)
-	return entries_directories
-end
-
--- Moves the cursor to the ".." in tree_view
-local function move_cursor_top()
-	-- 2 is the position of the ".."
-	tree_view.Cursor.Loc.Y = 2
-
-	-- select the line after moving
-	utils.select_line(tree_view)
-end
-
-local function refresh_and_select()
-	-- Save the cursor position before messing with the view..
-	-- because changing get_content in the view causes the Y loc to move
-	local last_y = tree_view.Cursor.Loc.Y
-	-- Actually refresh
-	tab:view_refresh()
-	-- Moves the cursor back to it's original position
-	utils.select_line(tree_view, last_y)
-end
 
 -- Find everything nested under the target, and remove it from the scanlist
 local function compress_target(y, delete_y)
@@ -209,7 +149,7 @@ local function compress_target(y, delete_y)
 		tab:resize(min_width + highest_visible_indent)
 	end
 
-	refresh_and_select()
+	tab:view_refresh()
 end
 
 -- Prompts the user for deletion of a file/dir when triggered
@@ -312,9 +252,10 @@ local function uncompress_target(y)
 		return
 	end
 	-- Only uncompress if it's a dir and it's not already uncompressed
+
 	if tab.entry_list[y].icon == icons['dir'] then
 		-- Get a new scanlist with results from the scan in the target dir
-		local scan_results = get_scanlist(tab.entry_list[y].abs_path, y, tab.entry_list[y].indent_level + 1)
+		local scan_results = tab:get_entry_list(tab.entry_list[y].abs_path, y, tab.entry_list[y].indent_level + 1)
 		-- Don't run any of this if there's nothing in the dir we scanned, pointless
 		if scan_results ~= nil then
 			-- Will hold all the old values + new scan results
@@ -362,7 +303,7 @@ local function uncompress_target(y)
 			end
 		end
 
-		refresh_and_select()
+		tab:view_refresh()
 	end
 end
 
@@ -415,7 +356,7 @@ function rename_at_cursor(_, args)
 	-- Replace the old path with the new path
 	tab.entry_list[y].abs_path = new_path
 	-- Refresh the tree with our new name
-	refresh_and_select()
+	tab:view_refresh()
 end
 
 -- Prompts the user for the file/dir name, then creates the file/dir using Go's os package

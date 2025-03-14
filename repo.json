@@ -24,6 +24,46 @@ end
 end
 
 
+function refresh_and_select()
+-- Save the cursor position before messing with the view..
+-- because changing get_content in the view causes the Y loc to move
+local last_y = tree_view.Cursor.Loc.Y
+-- Actually refresh
+tab:view_refresh()
+-- Moves the cursor back to it's original position
+self.select_line(tree_view, last_y)
+end
+
+
+
+-- Hightlights the line when you move the cursor up/down
+ function Tab:select_line(line_number)
+
+	line_number = 2
+	-- Make last_y optional
+	if line_number then
+		-- Don't let them move past ".." by checking the result first
+		if line_number > 1 then
+			-- If the last position was valid, move back to it
+			self.curPane.Cursor.Loc.Y = line_number
+		end
+	elseif line_number < 2 then
+		-- Put the cursor on the ".." if it's above it
+		self.curPane.Cursor.Loc.Y = 2
+	end
+
+	-- Puts the cursor back in bounds (if it isn't) for safety
+	self.curPane.Cursor:Relocate()
+
+	-- Makes sure the cursor is visible (if it isn't)
+	-- (false) means no callback
+	self.curPane:Center()
+
+	-- Highlight the current line where the cursor is
+	self.curPane.Cursor:SelectLine()
+end
+
+
 
 
 
