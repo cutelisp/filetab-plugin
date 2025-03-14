@@ -41,6 +41,7 @@ local current_dir
 -- Keep track of current highest visible indent to resize width appropriately
 local highest_visible_indent = 0
 -- Holds a table of entries, entry is the object of entry.lua
+local scanlist = {}
 
 
 -- Structures the output of the scanned directory content to be used in the scanlist table
@@ -50,7 +51,7 @@ local function get_scanlist(directory, ownership, indent_level)
 	local show_ignored_files = config.GetGlobalOption('filemanager.showignored') --TODO not working ignored_files not fetching correctly ig
 
 	-- Gets a list of all the files names in the current dir
-	local all_files_names, error_message = utils.get_files_names(directory, true, true)
+	local all_files_names, error_message = utils.get_files_names(directory, show_dotfiles, show_ignored_files)
 
 	-- files will be nil if the directory is read-protected (no permissions)
 	if all_files_names == nil then
@@ -99,7 +100,7 @@ local function refresh_and_select()
 	-- because changing get_content in the view causes the Y loc to move
 	local last_y = tree_view.Cursor.Loc.Y
 	-- Actually refresh
-	tab:view_refresh()
+	tab:refresh_view()
 	-- Moves the cursor back to it's original position
 	utils.select_line(tree_view, last_y)
 end
@@ -114,7 +115,7 @@ local function compress_target(y, delete_y)
 	end
 	-- Check if the target is a dir, since files don't have anything to compress
 	-- Also make sure it's actually an uncompressed dir by checking the gutter message
-	if tab.entry_list[y].icon == icons['dir_open'] then
+	if scanlist[y].icon == icons['dir_open'] then
 		local delete_index
 		-- Add the original target y to stuff to delete
 		local delete_under = { [1] = y }
@@ -122,25 +123,25 @@ local function compress_target(y, delete_y)
 		local del_count = 0
 		-- Loop through the whole table, looking for nested content, or stuff with ownership == y...
 		-- and delete matches. y+1 because we want to start under y, without actually touching y itself.
-		for i = 1, #tab.entry_list do
+		for i = 1, #scanlist do
 			delete_index = false
 			-- Don't run on y, since we don't always delete y
 			if i ~= y then
 				-- On each loop, check if the ownership matches
 				for x = 1, #delete_under do
 					-- Check for something belonging to a thing to delete
-					if tab.entry_list[i].owner == delete_under[x] then
+					if scanlist[i].owner == delete_under[x] then
 						-- Delete the target if it has an ownership to our delete target
 						delete_index = true
 						-- Keep count of total deleted (can't use #delete_under because it's for deleted dir count)
 						del_count = del_count + 1
 						-- Check if an uncompressed dir
-						if tab.entry_list[i].icon == icons['dir_open'] then
+						if scanlist[i].icon == icons['dir_open'] then
 							-- Add the index to stuff to delete, since it holds nested content
 							delete_under[#delete_under + 1] = i
 						end
 						-- See if we're on the "deepest" nested content
-						if tab.entry_list[i].indent_level == highest_visible_indent and tab.entry_list[i].indent_level > 0 then
+						if scanlist[i].indent_level == highest_visible_indent and scanlist[i].indent_level > 0 then
 							-- Save the lower indent, since we're minimizing/deleting nested dirs
 							highest_visible_indent = highest_visible_indent - 1
 						end
@@ -151,20 +152,20 @@ local function compress_target(y, delete_y)
 			end
 			if not delete_index then
 				-- Save the index in our new table
-				new_table[#new_table + 1] = tab.entry_list[i]
+				new_table[#new_table + 1] = scanlist[i]
 			end
 		end
 
-		tab.entry_list = new_table
+		scanlist = new_table
 		tab.entry_list = new_table
 
 		if del_count > 0 then
 			-- Ownership adjusting since we're deleting an index
-			for i = y + 1, #tab.entry_list do
+			for i = y + 1, #scanlist do
 				-- Don't touch root file/dirs
-				if tab.entry_list[i].owner > y then
+				if scanlist[i].owner > y then
 					-- Minus ownership, on everything below i, the number deleted
-					tab.entry_list[i]:decrease_owner(del_count)
+					scanlist[i]:decrease_owner(del_count)
 				end
 			end
 		end
@@ -172,7 +173,7 @@ local function compress_target(y, delete_y)
 		-- If not deleting, then update the gutter message to be + to signify compressed
 		if not delete_y then
 			-- Update the dir message
-			tab.entry_list[y].icon = icons['dir']
+			scanlist[y].icon = icons['dir']
 		end
 	elseif config.GetGlobalOption('filemanager.compressparent') and not delete_y then
 		goto_parent_dir()
@@ -184,23 +185,23 @@ local function compress_target(y, delete_y)
 	if delete_y then
 		local second_table = {}
 		-- Quickly remove y
-		for i = 1, #tab.entry_list do
+		for i = 1, #scanlist do
 			if i == y then
 				-- Reduce everything's ownership by 1 after y
-				for x = i + 1, #tab.entry_list do
+				for x = i + 1, #scanlist do
 					-- Don't touch root file/dirs
-					if tab.entry_list[x].owner > y then
+					if scanlist[x].owner > y then
 						-- Minus 1 since we're just deleting y
-						tab.entry_list[x]:decrease_owner(1)
+						scanlist[x]:decrease_owner(1)
 					end
 				end
 			else
 				-- Put everything but y into the temporary table
-				second_table[#second_table + 1] = tab.entry_list[i]
+				second_table[#second_table + 1] = scanlist[i]
 			end
 		end
 		-- Put everything (but y) back into scanlist, with adjusted ownership values
-		tab.entry_list = second_table
+		scanlist = second_table
 		tab.entry_list = second_table
 	end
 
@@ -227,19 +228,19 @@ function prompt_delete_at_cursor()
 
 	micro.InfoBar():YNPrompt(
 		'Do you want to delete the '
-			.. (tab.entry_list[y].icon == icons['dir'] and 'dir' or 'file')
+			.. (scanlist[y].icon == icons['dir'] and 'dir' or 'file')
 			.. ' "'
-			.. tab.entry_list[y].abs_path
+			.. scanlist[y].abs_path
 			.. '"? ',
 		function(yes, canceled)
 			if yes and not canceled then
 				-- Use Go's os.Remove to delete the file
 				local go_os = import('os')
 				-- Delete the target (if its a dir then the children too)
-				local remove_log = go_os.RemoveAll(tab.entry_list[y].abs_path)
+				local remove_log = go_os.RemoveAll(scanlist[y].abs_path)
 				if remove_log == nil then
-					micro.InfoBar():Message('filemanager deleted: ', tab.entry_list[y].abs_path)
-					-- Remove the target (and all nested) from tab.entry_list[y + 1]
+					micro.InfoBar():Message('filemanager deleted: ', scanlist[y].abs_path)
+					-- Remove the target (and all nested) from scanlist[y + 1]
 					-- true to delete y
 					compress_target(utils.get_safe_y(tree_view), true)
 				else
@@ -252,6 +253,35 @@ function prompt_delete_at_cursor()
 	)
 end
 
+-- Changes the current dir in the top of the tree..
+-- then scans that dir, and prints it to the view
+local function update_current_dir(path)
+	-- Clear the highest since this is a full refresh
+	highest_visible_indent = 0
+	-- Set the width back to 30
+	tab:resize(tab.min_width)
+	-- Update the current dir to the new path
+	current_dir = path
+
+	-- Get the current working dir's files into our list of files
+	-- 0 ownership because this is a scan of the base dir
+	-- 0 indent because this is the base dir
+	local scan_results = get_scanlist(path, 0, 0)
+	-- Safety check with not-nil
+	if scan_results ~= nil then
+		-- Put in the new scan stuff
+		scanlist = scan_results
+		tab.entry_list = scan_results
+	else
+		-- If nil, just empty it
+		tab.entry_list = {}
+		scanlist = {}
+	end
+
+	tab:refresh_view()
+	-- Since we're going into a new dir, move cursor to the ".." by default
+	move_cursor_top()
+end
 
 -- (Tries to) go back one "step" from the current directory
 local function go_back_dir()
@@ -261,9 +291,10 @@ local function go_back_dir()
 	if one_back_dir ~= current_dir then
 		-- If filepath.Dir returns different, then they can move back..
 		-- so we update the current dir and refresh
-		tab:view_show(one_back_dir)
-		--current_dir = one_back_dir
-		tab.entry_list = tab.entry_list
+		current_dir = one_back_dir
+
+		tab:update_current_dir(current_dir)
+		scanlist = tab.entry_list
 	end
 end
 
@@ -279,21 +310,21 @@ local function try_open_at_y(y, direction)
 	-- 2 is the zero-based index of ".."
 	if y == 2 then
 		go_back_dir()
-	elseif y > 2 and not utils.is_scanlist_empty(tab.entry_list) then
+	elseif y > 2 and not utils.is_scanlist_empty(scanlist) then
 		-- -2 to conform to our scanlist "missing" first 3 indicies
 		y = y - 2
-		if tab.entry_list[y].icon == icons['dir'] or tab.entry_list[y].icon == icons['dir_open'] then
+		if scanlist[y].icon == icons['dir'] or scanlist[y].icon == icons['dir_open'] then
 			-- if passed path is a directory, update the current dir to be one deeper..
-			tab:view_show(tab.entry_list[y].abs_path)
+			update_current_dir(scanlist[y].abs_path)
 		else
 			-- If it's a file, then open it
-			micro.InfoBar():Message('filemanager opened ', tab.entry_list[y].abs_path)
+			micro.InfoBar():Message('filemanager opened ', scanlist[y].abs_path)
 			if direction == 'vsplit' then
 				-- Opens the absolute path in new vertical view
-				micro.CurPane():VSplitIndex(buffer.NewBufferFromFile(tab.entry_list[y].abs_path), true)
+				micro.CurPane():VSplitIndex(buffer.NewBufferFromFile(scanlist[y].abs_path), true)
 			else
 				-- Opens the absolute path in new horizontal view
-				micro.CurPane():HSplitIndex(buffer.NewBufferFromFile(tab.entry_list[y].abs_path), true)
+				micro.CurPane():HSplitIndex(buffer.NewBufferFromFile(scanlist[y].abs_path), true)
 			end
 			-- Resizes all views after opening a file
 			-- tabs[curTab + 1]:Resize()
@@ -308,57 +339,57 @@ local function uncompress_target(y)
 	local icons = Icons()
 
 	-- Exit early if on the top 3 non-list items
-	if y == 0 or utils.is_scanlist_empty(tab.entry_list) then
+	if y == 0 or utils.is_scanlist_empty(scanlist) then
 		return
 	end
 	-- Only uncompress if it's a dir and it's not already uncompressed
-	if tab.entry_list[y].icon == icons['dir'] then
+	if scanlist[y].icon == icons['dir'] then
 		-- Get a new scanlist with results from the scan in the target dir
-		local scan_results = get_scanlist(tab.entry_list[y].abs_path, y, tab.entry_list[y].indent_level + 1)
+		local scan_results = get_scanlist(scanlist[y].abs_path, y, scanlist[y].indent_level + 1)
 		-- Don't run any of this if there's nothing in the dir we scanned, pointless
 		if scan_results ~= nil then
 			-- Will hold all the old values + new scan results
 			local new_table = {}
 			-- By not inserting in-place, some unexpected results can be avoided
 			-- Also, table.insert actually moves values up (???) instead of down
-			for i = 1, #tab.entry_list do
+			for i = 1, #scanlist do
 				-- Put the current val into our new table
-				new_table[#new_table + 1] = tab.entry_list[i]
+				new_table[#new_table + 1] = scanlist[i]
 				if i == y then
 					-- Fill in the scan results under y
 					for x = 1, #scan_results do
 						new_table[#new_table + 1] = scan_results[x]
 					end
 					-- Basically "moving down" everything below y, so ownership needs to increase on everything
-					for inner_i = y + 1, #tab.entry_list do
+					for inner_i = y + 1, #scanlist do
 						-- When root not pushed by inserting, don't change its ownership
 						-- This also has a dual-purpose to make it not effect root file/dirs
 						-- since y is always >= 3
-						if tab.entry_list[inner_i].owner > y then
+						if scanlist[inner_i].owner > y then
 							-- Increase each indicies ownership by the number of scan results inserted
-							tab.entry_list[inner_i]:increase_owner(#scan_results)
+							scanlist[inner_i]:increase_owner(#scan_results)
 						end
 					end
 				end
 			end
 
 			-- Update our scanlist with the new values
-			tab.entry_list = new_table
+			scanlist = new_table
 			tab.entry_list = new_table
 
 		end
 
 		-- Change to minus to signify it's uncompressed
-		tab.entry_list[y].icon = icons['dir_open']
+		scanlist[y].icon = icons['dir_open']
 
 		-- Check if we actually need to resize, or if we're nesting at the same indent
 		-- Also check if there's anything in the dir, as we don't need to expand on an empty dir
 		if scan_results ~= nil then
-			if tab.entry_list[y].indent_level > highest_visible_indent and #scan_results >= 1 then
+			if scanlist[y].indent_level > highest_visible_indent and #scan_results >= 1 then
 				-- Save the new highest indent
-				highest_visible_indent = tab.entry_list[y].indent_level
+				highest_visible_indent = scanlist[y].indent_level
 				-- Increase the width to fit the new nested content
-				tab:resize(tree_view:GetView().Width + tab.entry_list[y].indent_level)
+				tab:resize(tree_view:GetView().Width + scanlist[y].indent_level)
 			end
 		end
 
@@ -393,7 +424,7 @@ function rename_at_cursor(_, args)
 	end
 
 	-- The old file/dir's path
-	local old_path = tab.entry_list[y].abs_path
+	local old_path = scanlist[y].abs_path
 	-- Join the path into their supplied rename, so that we have an absolute path
 	local new_path = utils.dirname_and_join(old_path, new_name)
 	-- Use Go's os package for renaming the file/dir
@@ -413,7 +444,7 @@ function rename_at_cursor(_, args)
 
 	-- NOTE: doesn't alphabetically sort after refresh, but it probably should
 	-- Replace the old path with the new path
-	tab.entry_list[y].abs_path = new_path
+	scanlist[y].abs_path = new_path
 	-- Refresh the tree with our new name
 	refresh_and_select()
 end
@@ -438,17 +469,17 @@ local function create_filedir(filedir_name, make_dir)
 	-- Holds the path passed to Go for the eventual new file/dir
 	local filedir_path
 	-- A true/false if scanlist is empty
-	local is_scanlist_empty = utils.is_scanlist_empty(tab.entry_list)
+	local is_scanlist_empty = utils.is_scanlist_empty(scanlist)
 
 	-- Check there's actually anything in the list, and that they're not on the ".."
 	if not is_scanlist_empty and y ~= 0 then
 		-- If they're inserting on a folder, don't strip its path
-		if tab.entry_list[y].icon == icons['dir'] or tab.entry_list[y].icon == icons['dir_open'] then
+		if scanlist[y].icon == icons['dir'] or scanlist[y].icon == icons['dir_open'] then
 			-- Join our new file/dir onto the dir
-			filedir_path = filepath.Join(tab.entry_list[y].abs_path, filedir_name)
+			filedir_path = filepath.Join(scanlist[y].abs_path, filedir_name)
 		else
 			-- The current index is a file, so strip its name and join ours onto it
-			filedir_path = utils.dirname_and_join(tab.entry_list[y].abs_path, filedir_name)
+			filedir_path = utils.dirname_and_join(scanlist[y].abs_path, filedir_name)
 		end
 	else
 		-- if nothing in the list, or cursor is on top of "..", use the current dir
@@ -493,57 +524,57 @@ local function create_filedir(filedir_name, make_dir)
 		last_y = tree_view.Cursor.Loc.Y + 1
 
 		-- Only actually add the object to the list if it's not created on an uncompressed folder
-		if tab.entry_list[y].icon == icons['dir'] then
+		if scanlist[y].icon == icons['dir'] then
 			-- Exit early, since it was created into an uncompressed folder
 
 			return
-		elseif tab.entry_list[y].icon == icons['dir_open'] then
+		elseif scanlist[y].icon == icons['dir_open'] then
 			-- Check if created on top of an uncompressed folder
 			-- Change ownership to the folder it was created on top of..
 			-- otherwise, the ownership would be incorrect
 			new_filedir.owner = y
 			-- We insert under the folder, so increment the indent
-			new_filedir.indent_level = tab.entry_list[y].indent_level + 1
+			new_filedir.indent_level = scanlist[y].indent_level + 1
 		else
 			-- This triggers if the cursor is on top of a file...
 			-- so we copy the properties of it
-			new_filedir.owner = tab.entry_list[y].owner
-			new_filedir.indent_level = tab.entry_list[y].indent_level
+			new_filedir.owner = scanlist[y].owner
+			new_filedir.indent_level = scanlist[y].indent_level
 		end
 
 		-- A temporary table for adding our new object, and manipulation
 		local new_table = {}
 		-- Insert the new file/dir, and update ownership of everything below it
-		for i = 1, #tab.entry_list do
+		for i = 1, #scanlist do
 			-- Don't use i as index, as it will be off by one on the next pass after below "i == y"
-			new_table[#new_table + 1] = tab.entry_list[i]
+			new_table[#new_table + 1] = scanlist[i]
 			if i == y then
 				-- Insert our new file/dir (below the last item)
 				new_table[#new_table + 1] = new_filedir
 				-- Increase ownership of everything below it, since we're inserting
 				-- Basically "moving down" everything below y, so ownership needs to increase on everything
-				for inner_i = y + 1, #tab.entry_list do
+				for inner_i = y + 1, #scanlist do
 					-- When root not pushed by inserting, don't change its ownership
 					-- This also has a dual-purpose to make it not effect root file/dirs
 					-- since y is always >= 3
-					if tab.entry_list[inner_i].owner > y then
+					if scanlist[inner_i].owner > y then
 						-- Increase each indicies ownership by 1 since we're only inserting 1 file/dir
-						tab.entry_list[inner_i]:increase_owner(1)
+						scanlist[inner_i]:increase_owner(1)
 					end
 				end
 			end
 		end
 		-- Update the scanlist with the new object & updated ownerships
-		tab.entry_list = new_table
+		scanlist = new_table
 		tab.entry_list = new_table
 	else
 		-- The scanlist is empty (or cursor is on ".."), so we add on our new file/dir at the bottom
-		tab.entry_list[#tab.entry_list + 1] = new_filedir
+		scanlist[#scanlist + 1] = new_filedir
 		-- Add current position so it takes into account where we are
-		last_y = #tab.entry_list + tree_view.Cursor.Loc.Y
+		last_y = #scanlist + tree_view.Cursor.Loc.Y
 	end
 
-	tab:view_refresh()
+	tab:refresh_view()
 	select_line(last_y)
 end
 
@@ -577,8 +608,17 @@ end
 
 -- open_tree setup's the view
 local function open_tree()
-	tab:open_tree()
-	tree_view = tab.curPane
+	-- Open a new Vsplit (on the very left)
+	micro.CurPane():VSplitIndex(buffer.NewBuffer('', 'filetab'), false)
+	-- Save the new view so we can access it later
+	tree_view = micro.CurPane()
+	tab = Tab:new(micro.CurPane(), current_dir)
+
+	tab:setup_settings()
+
+	-- Fill the scanlist, and then print its get_content to tree_view
+	update_current_dir(os.Getwd())
+	tab.is_open = true
 end
 
 
@@ -626,7 +666,7 @@ function goto_prev_dir()
 		for i = cur_y - 1, 1, -1 do
 			move_count = move_count + 1
 			-- If a dir, stop counting
-			if tab.entry_list[i].icon == icons['dir'] or tab.entry_list[i].icon == icons['dir_open'] then
+			if scanlist[i].icon == icons['dir'] or scanlist[i].icon == icons['dir_open'] then
 				-- Jump to its parent (the ownership)
 				tree_view.Cursor:UpN(move_count)
 				utils.select_line(tree_view)
@@ -653,11 +693,11 @@ function goto_next_dir()
 		move_count = 1
 	end
 	-- Only do anything if it's even possible for there to be another dir
-	if cur_y < #tab.entry_list then
-		for i = cur_y + 1, #tab.entry_list do
+	if cur_y < #scanlist then
+		for i = cur_y + 1, #scanlist do
 			move_count = move_count + 1
 			-- If a dir, stop counting
-			if tab.entry_list[i].icon == icons['dir'] or tab.entry_list[i].icon == icons['dir_open'] then
+			if scanlist[i].icon == icons['dir'] or scanlist[i].icon == icons['dir_open'] then
 				-- Jump to its parent (the ownership)
 				tree_view.Cursor:DownN(move_count)
 				utils.select_line(tree_view)
@@ -678,7 +718,7 @@ function goto_parent_dir()
 	-- Check if the cursor is even in a valid location for jumping to the owner
 	if cur_y > 0 then
 		-- Jump to its parent (the ownership)
-		tree_view.Cursor:UpN(cur_y - tab.entry_list[cur_y].owner)
+		tree_view.Cursor:UpN(cur_y - scanlist[cur_y].owner)
 		utils.select_line(tree_view)
 	end
 end
@@ -945,7 +985,7 @@ function onCommandMode(_)
 	local new_dir = os.Getwd()
 	-- Only do anything if the tree is open, and they didn't cd to nothing
 	if tree_view ~= nil and new_dir ~= precmd_dir and new_dir ~= current_dir then
-		--view_show(new_dir)todo
+		update_current_dir(new_dir)
 	end
 end
 
@@ -1127,7 +1167,7 @@ function init()
 
 
 	current_dir = os.Getwd()
-	tab = Tab:new(micro.CurPane(), current_dir)
+
 	-- NOTE: This must be below the syntax load command or coloring won't work
 	-- Just auto-open if the option is enabled
 	-- This will run when the plugin first loads
@@ -1137,7 +1177,7 @@ function init()
 			open_tree()
 			-- Puts the cursor back in the empty view that initially spawns
 			-- This is so the cursor isn't sitting in the tree view at startup
-			--micro.CurPane():NextSplit()
+			micro.CurPane():NextSplit()
 		else
 			-- Log error so they can fix it
 			micro.Log(
