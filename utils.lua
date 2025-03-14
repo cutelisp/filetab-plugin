@@ -1,3 +1,18 @@
+local config = import('micro/config')
+local micro = import('micro')
+
+local golib_ioutil = import('ioutil')
+local shell = import('micro/shell')
+
+local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
+
+
+
+function Icons()
+	return icon.Icons()
+end
+
+
 -- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
 -- aka this returns a list of gitignored files (but for whatever VCS is found)
 local function get_ignored_files(tar_dir)
@@ -27,9 +42,38 @@ local function get_ignored_files(tar_dir)
 	return readout_results
 end
 
+
+-- Returns a list of all the files of directory
+local function get_files(directory, include_dotfiles)
+
+
+	local result
+	--local golib_ioutil = import('ioutil')
+
+	local files, scan_error = golib_ioutil.ReadDir(directory)
+	-- files will be nil if the directory is read-protected (no permissions)
+
+	for file in files do
+		result = file:Name()
+	end
+	return files
+end
+
+
+
+
+
+
 -- Consant for the min with of tree
 local function get_tree_min_with()
 	return 30
+end
+
+-- Appends the elements of the second table to the first table
+local function get_appended_tables(table1, table2)
+    for i = 1, #table2 do
+        table1[#table1 + 1] = table2[i]
+    end
 end
 
 -- A short "get y" for when acting on the scanlist
@@ -125,9 +169,18 @@ local function is_path(path)
 	return false
 end
 
+-- Returns true/false if the table has an entry equal to the given entry
+local function is_entry_in_table(entry, table)
+	for i = 1, #table do
+		if table[i] == entry then
+			return true
+		end
+	end
+	return false
+end
 
 -- A check for if a path is a dir
-local function is_dir(micro, path)
+local function is_dir(path)
 	-- Used for checking if dir
 	local golib_os = import('os')
 	-- Returns a FileInfo on the current file/path
@@ -147,13 +200,15 @@ end
 
 -- Returns true/false if the file is a dotfile
 local function is_dotfile(file_name)
-	-- Check if the filename starts with a dot
-	if string.sub(file_name, 1, 1) == '.' then
-		return true
-	else
-		return false
-	end
+	return string.sub(file_name, 1, 1) == '.'
 end
+
+
+-- Returns true/false if the file is a dotfile todo
+local function is_ignored_file(file_name)
+	return false
+end
+
 
 -- Simple true/false if scanlist is currently empty
 local function is_scanlist_empty(scanlist)
@@ -163,6 +218,7 @@ local function is_scanlist_empty(scanlist)
 		return false
 	end
 end
+
 -- Simple true/false if scanlist is currently empty
 local function scanlist_is_empty()
 	if next(scanlist) == nil then
@@ -171,16 +227,62 @@ local function scanlist_is_empty()
 		return false
 	end
 end
+
+-- Returns the names of all files inside the given directory.
+-- Checks if the file name should be returned based on include_dotfiles and include_ignored_files.
+local function get_files_names(directory, include_dotfiles, include_ignored_files)
+	local files, error_message = golib_ioutil.ReadDir(directory)
+	-- files will be nil if the directory is read-protected (no permissions)
+	if error_message then
+		return nil, error_message
+	end
+
+	local result = {}
+
+	-- Include all files
+	if include_dotfiles and include_ignored_files then
+		for i = 1, #files do
+			table.insert(result, files[i]:Name())
+		end
+		return result
+	end
+
+	local function is_meant_to_show(file_name)
+		if not include_dotfiles and is_dotfile(file_name) then
+			return false
+		elseif not include_ignored_files and is_ignored_file(file_name) then
+			return false
+		else
+			return true
+		end
+	end
+
+	-- Include all files but dotfiles/ignored_files
+	if not include_dotfiles or not include_ignored_files then
+		local file_name
+		for i = 1, #files do
+			file_name = files[i]:Name()
+			if is_meant_to_show(file_name) then
+				table.insert(result, file_name)
+			end
+		end
+		return result
+	end
+end
+
 return {
 	get_ignored_files = get_ignored_files,
 	get_tree_min_with = get_tree_min_with,
 	get_basename = get_basename,
+	get_appended_tables = get_appended_tables,
+	get_files_names = get_files_names,
 	get_safe_y = get_safe_y,
 	select_line = select_line,
 	repeat_str = repeat_str,
 	dirname_and_join = dirname_and_join,
+	is_entry_in_table = is_entry_in_table,
 	is_path = is_path,
-	is_dir = is_dir, 
+	is_dir = is_dir,
 	is_dotfile = is_dotfile,
 	is_scanlist_empty = is_scanlist_empty,
 }

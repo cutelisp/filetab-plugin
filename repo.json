@@ -10,3 +10,31 @@
 		]
 	}
 ]
+
+
+-- Returns true/false if the file is a dotfile
+local function is_dotfile(file_name)
+
+-- Check if the filename starts with a dot
+if string.sub(file_name, 1, 1) == '.' then
+return true
+else
+return false
+end
+end
+
+
+
+
+
+
+
+
+-- If we should not show dotfiles, and this is a dotfile, don't show
+if false or  show_dotfiles and utils.is_dotfile(file_name) then
+showfile = false
+end
+-- If we should not show ignored files, and this is an ignored file, don't show
+if false or not show_ignored and utils.is_entry_in_table(file_name, all_files) then
+showfile = false
+end

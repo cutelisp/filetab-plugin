@@ -36,93 +36,51 @@ local tree_view
 local current_dir = os.Getwd()
 -- Keep track of current highest visible indent to resize width appropriately
 local highest_visible_indent = 0
--- Holds a table of entries -- objects from entry.lua
+-- Holds a table of entries, entry is the object of entry.lua
 local scanlist = {}
 
 
 -- Structures the output of the scanned directory content to be used in the scanlist table
 -- This is useful for both initial creation of the tree, and when nesting with uncompress_target()
-local function get_scanlist(dir, ownership, indent_n)
-	local icons = Icons()
+local function get_scanlist(directory, ownership, indent_level)
+	local show_dotfiles = config.GetGlobalOption('filemanager.showdotfiles')
+	local show_ignored_files = config.GetGlobalOption('filemanager.showignored') --TODO not working ignored_files not fetching correctly ig
 
-	local golib_ioutil = import('ioutil')
-	-- Gets a list of all the files in the current dir
-	local all_files, scan_error = golib_ioutil.ReadDir(dir)
+	-- Gets a list of all the files names in the current dir
+	local all_files_names, error_message = utils.get_files_names(directory, show_dotfiles, show_ignored_files)
 
 	-- files will be nil if the directory is read-protected (no permissions)
-	if all_files == nil then
-		micro.InfoBar():Error('Error scanning dir: ', scan_error)
+	if all_files_names == nil then
+		micro.InfoBar():Error('Error scanning dir: ', directory, ' | ', error_message)
 		return nil
 	end
 
-	-- The list of entries to be returned (and eventually put in the view)
-	local entries = {}
-	-- The list of files to be added to entries
-	local files = {}
+	-- The list of directories & files entries to be returned (and eventually put in the view)
+	local entries_directories = {}
+	local entries_files = {}
+	local entry_name
 
-	local function get_entry(file_name)
-		local abs_path = filepath.Join(dir, file_name)
-		local icon = (utils.is_dir(micro, abs_path) and icons['dir'] or GetIcon(file_name))
-		local new_entry = entry:new(abs_path, icon, ownership, indent_n)
-		return new_entry
-	end
+	for i = 1, #all_files_names do
+		entry_name = all_files_names[i]
 
-	-- Save so we don't have to rerun GetOption a bunch
-	local show_dotfiles = config.GetGlobalOption('filemanager.showdotfiles')
-	local show_ignored = config.GetGlobalOption('filemanager.showignored')
+		local new_entry = entry:new(entry_name, filepath.Join(directory, entry_name), ownership, indent_level)
 
-	-- The list of VCS-ignored files (if any)
-	-- Only bother getting ignored files if we're not showing ignored
-	local ignored_files = (not show_ignored and utils.get_ignored_files(dir) or {})
-	-- True/false if the file is an ignored file
-	local function is_ignored_file(filename)
-		for i = 1, #ignored_files do
-			if ignored_files[i] == filename then
-				return true
-			end
-		end
-		return false
-	end
-
-	-- Hold the current scan's filename in most of the loops below
-	local filename
-
-	for i = 1, #all_files do
-		local showfile = true
-		filename = all_files[i]:Name()
-		-- If we should not show dotfiles, and this is a dotfile, don't show
-		if not show_dotfiles and utils.is_dotfile(filename) then
-			showfile = false
-		end
-		-- If we should not show ignored files, and this is an ignored file, don't show
-		if not show_ignored and is_ignored_file(filename) then
-			showfile = false
-		end
-
-		if not utils.is_dir(micro, filepath.Join(dir, filename)) then
+		-- Logic to make sure all directories are appended first to entries table so they are shown first
+		if not new_entry.is_dir then
 			-- If this is a file, add it to (temporary) files
-			files[#files + 1] = get_entry(filename)
+			entries_files[#entries_files + 1] = new_entry
 		else
 			-- Otherwise, add to entries
-			entries[#entries + 1] = get_entry(filename)
-		end
-
-	end
-	if #files > 0 then
-		-- Append any files to results, now that all folders have been added
-		for i = 1, #files do
-			entries[#entries + 1] = files[i]
+			entries_directories[#entries_directories + 1] = new_entry
 		end
 	end
 
-	-- Return the list of scanned entries
-	return entries
+	-- Append all file entries to directories entries (So they can be correctly sorted)
+	utils.get_appended_tables(entries_directories, entries_files)
+
+	-- Return all entries (directories + files)
+	return entries_directories
 end
-
-
-
-
-
 
 local function refresh_view()
 	local icons = Icons()
@@ -156,7 +114,7 @@ local function refresh_view()
 
 		-- Insert line-by-line to avoid out-of-bounds on big folders
 		-- +2 so we skip the 0/1/2 positions that hold the top dir/separator/..
-		tree_view.Buf.EventHandler:Insert(buffer.Loc(0, i + 2), content ) 
+		tree_view.Buf.EventHandler:Insert(buffer.Loc(0, i + 2), content )
 	end
 
 	-- Resizes all views after messing with ours
@@ -218,7 +176,7 @@ local function compress_target(y, delete_y)
 							delete_under[#delete_under + 1] = i
 						end
 						-- See if we're on the "deepest" nested content
-						if scanlist[i].indent == highest_visible_indent and scanlist[i].indent > 0 then
+						if scanlist[i].indent_level == highest_visible_indent and scanlist[i].indent_level > 0 then
 							-- Save the lower indent, since we're minimizing/deleting nested dirs
 							highest_visible_indent = highest_visible_indent - 1
 						end
@@ -305,16 +263,16 @@ function prompt_delete_at_cursor()
 		'Do you want to delete the '
 			.. (scanlist[y].icon == icons['dir'] and 'dir' or 'file')
 			.. ' "'
-			.. scanlist[y].abspath
+			.. scanlist[y].abs_path
 			.. '"? ',
 		function(yes, canceled)
 			if yes and not canceled then
 				-- Use Go's os.Remove to delete the file
 				local go_os = import('os')
 				-- Delete the target (if its a dir then the children too)
-				local remove_log = go_os.RemoveAll(scanlist[y].abspath)
+				local remove_log = go_os.RemoveAll(scanlist[y].abs_path)
 				if remove_log == nil then
-					micro.InfoBar():Message('filemanager deleted: ', scanlist[y].abspath)
+					micro.InfoBar():Message('filemanager deleted: ', scanlist[y].abs_path)
 					-- Remove the target (and all nested) from scanlist[y + 1]
 					-- true to delete y
 					compress_target(utils.get_safe_y(tree_view), true)
@@ -385,16 +343,16 @@ local function try_open_at_y(y, direction)
 		y = y - 2
 		if scanlist[y].icon == icons['dir'] or scanlist[y].icon == icons['dir_open'] then
 			-- if passed path is a directory, update the current dir to be one deeper..
-			update_current_dir(scanlist[y].abspath)
+			update_current_dir(scanlist[y].abs_path)
 		else
 			-- If it's a file, then open it
-			micro.InfoBar():Message('filemanager opened ', scanlist[y].abspath)
+			micro.InfoBar():Message('filemanager opened ', scanlist[y].abs_path)
 			if direction == 'vsplit' then
 				-- Opens the absolute path in new vertical view
-				micro.CurPane():VSplitIndex(buffer.NewBufferFromFile(scanlist[y].abspath), true)
+				micro.CurPane():VSplitIndex(buffer.NewBufferFromFile(scanlist[y].abs_path), true)
 			else
 				-- Opens the absolute path in new horizontal view
-				micro.CurPane():HSplitIndex(buffer.NewBufferFromFile(scanlist[y].abspath), true)
+				micro.CurPane():HSplitIndex(buffer.NewBufferFromFile(scanlist[y].abs_path), true)
 			end
 			-- Resizes all views after opening a file
 			-- tabs[curTab + 1]:Resize()
@@ -415,7 +373,7 @@ local function uncompress_target(y)
 	-- Only uncompress if it's a dir and it's not already uncompressed
 	if scanlist[y].icon == icons['dir'] then
 		-- Get a new scanlist with results from the scan in the target dir
-		local scan_results = get_scanlist(scanlist[y].abspath, y, scanlist[y].indent + 1)
+		local scan_results = get_scanlist(scanlist[y].abs_path, y, scanlist[y].indent_level + 1)
 		-- Don't run any of this if there's nothing in the dir we scanned, pointless
 		if scan_results ~= nil then
 			-- Will hold all the old values + new scan results
@@ -453,11 +411,11 @@ local function uncompress_target(y)
 		-- Check if we actually need to resize, or if we're nesting at the same indent
 		-- Also check if there's anything in the dir, as we don't need to expand on an empty dir
 		if scan_results ~= nil then
-			if scanlist[y].indent > highest_visible_indent and #scan_results >= 1 then
+			if scanlist[y].indent_level > highest_visible_indent and #scan_results >= 1 then
 				-- Save the new highest indent
-				highest_visible_indent = scanlist[y].indent
+				highest_visible_indent = scanlist[y].indent_level
 				-- Increase the width to fit the new nested content
-				tree_view:ResizePane(tree_view:GetView().Width + scanlist[y].indent)
+				tree_view:ResizePane(tree_view:GetView().Width + scanlist[y].indent_level)
 			end
 		end
 
@@ -492,7 +450,7 @@ function rename_at_cursor(_, args)
 	end
 
 	-- The old file/dir's path
-	local old_path = scanlist[y].abspath
+	local old_path = scanlist[y].abs_path
 	-- Join the path into their supplied rename, so that we have an absolute path
 	local new_path = utils.dirname_and_join(old_path, new_name)
 	-- Use Go's os package for renaming the file/dir
@@ -512,7 +470,7 @@ function rename_at_cursor(_, args)
 
 	-- NOTE: doesn't alphabetically sort after refresh, but it probably should
 	-- Replace the old path with the new path
-	scanlist[y].abspath = new_path
+	scanlist[y].abs_path = new_path
 	-- Refresh the tree with our new name
 	refresh_and_select()
 end
@@ -544,10 +502,10 @@ local function create_filedir(filedir_name, make_dir)
 		-- If they're inserting on a folder, don't strip its path
 		if scanlist[y].icon == icons['dir'] or scanlist[y].icon == icons['dir_open'] then
 			-- Join our new file/dir onto the dir
-			filedir_path = filepath.Join(scanlist[y].abspath, filedir_name)
+			filedir_path = filepath.Join(scanlist[y].abs_path, filedir_name)
 		else
 			-- The current index is a file, so strip its name and join ours onto it
-			filedir_path = utils.dirname_and_join(scanlist[y].abspath, filedir_name)
+			filedir_path = utils.dirname_and_join(scanlist[y].abs_path, filedir_name)
 		end
 	else
 		-- if nothing in the list, or cursor is on top of "..", use the current dir
@@ -602,12 +560,12 @@ local function create_filedir(filedir_name, make_dir)
 			-- otherwise, the ownership would be incorrect
 			new_filedir.owner = y
 			-- We insert under the folder, so increment the indent
-			new_filedir.indent = scanlist[y].indent + 1
+			new_filedir.indent_level = scanlist[y].indent_level + 1
 		else
 			-- This triggers if the cursor is on top of a file...
 			-- so we copy the properties of it
 			new_filedir.owner = scanlist[y].owner
-			new_filedir.indent = scanlist[y].indent
+			new_filedir.indent_level = scanlist[y].indent_level
 		end
 
 		-- A temporary table for adding our new object, and manipulation
