@@ -16,10 +16,7 @@ function Action:new(tab)
     return instance
 end
 
-function Action:cursor_move_up()
-  --  self.pane.Cursor:Up()
-    --self:highlight_current_line()
-end
+
 
 function Action:cursor_move_down()
    -- self.pane.Cursor:Down()
