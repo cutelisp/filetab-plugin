@@ -11,6 +11,7 @@ local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
 local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
 local Tab = dofile(config.ConfigDir .. '/plug/filemanager/tab.lua')
+local Action = dofile(config.ConfigDir .. '/plug/filemanager/action.lua')
 
 
 
@@ -26,11 +27,6 @@ function FileIcon(buf)
 	return icon.GetIcon(buf.Path)
 end
 
--- Clear out all stuff in Micro's messenger
-local function clear_messenger()
-	-- messenger:Reset()
-	-- messenger:Clear()
-end
 
 local tab
 
@@ -193,69 +189,18 @@ function prompt_delete_at_cursor()
 end
 
 
--- (Tries to) go back one "step" from the current directory
-local function go_back_dir()
-	-- Use Micro's dirname to get everything but the current dir's path
-	local one_back_dir = filepath.Dir(current_dir)
-	-- Try opening, assuming they aren't at "root", by checking if it matches last dir
-	if one_back_dir ~= current_dir then
-		-- If filepath.Dir returns different, then they can move back..
-		-- so we update the current dir and refresh
-		tab:view_show(one_back_dir)
-		--current_dir = one_back_dir
-		tab.entry_list = tab.entry_list
-	end
-end
 
--- Tries to open the current index
--- If it's the top dir indicator, or separator, nothing happens
--- If it's ".." then it tries to go back a dir
--- If it's a dir then it moves into the dir and refreshes
--- If it's actually a file, open it in a new vsplit
--- THIS EXPECTS ZERO-BASED Y
-local function try_open_at_y(y, direction)
-	local icons = Icons()
-
-	-- 2 is the zero-based index of ".."
-	if y == 2 then
-		go_back_dir()
-	elseif y > 2 and not utils.is_scanlist_empty(tab.entry_list) then
-		-- -2 to conform to our scanlist "missing" first 3 indicies
-		y = y - 2
-		if tab.entry_list[y].icon == icons['dir'] or tab.entry_list[y].icon == icons['dir_open'] then
-			-- if passed path is a directory, update the current dir to be one deeper..
-			tab:view_show(tab.entry_list[y].abs_path)
-		else
-			-- If it's a file, then open it
-			micro.InfoBar():Message('filemanager opened ', tab.entry_list[y].abs_path)
-			if direction == 'vsplit' then
-				-- Opens the absolute path in new vertical view
-				micro.CurPane():VSplitIndex(buffer.NewBufferFromFile(tab.entry_list[y].abs_path), true)
-			else
-				-- Opens the absolute path in new horizontal view
-				micro.CurPane():HSplitIndex(buffer.NewBufferFromFile(tab.entry_list[y].abs_path), true)
-			end
-			-- Resizes all views after opening a file
-			-- tabs[curTab + 1]:Resize()
-		end
-	else
-		micro.InfoBar():Error('Can\'t open that')
-	end
-end
 
 -- Opens the dir's get_content nested under itself
-local function uncompress_target(y)
-	local icons = Icons()
-
-	-- Exit early if on the top 3 non-list items
-	if y == 0 or utils.is_scanlist_empty(tab.entry_list) then
+local function uncompress_target(entry_y)
+	
+	if not tab.entry_list[entry_y].is_dir or tab.entry_list[entry_y].is_open or entry_y < 2  then
 		return
 	end
 	-- Only uncompress if it's a dir and it's not already uncompressed
 
-	if tab.entry_list[y].icon == icons['dir'] then
 		-- Get a new scanlist with results from the scan in the target dir
-		local scan_results = tab:get_entry_list(tab.entry_list[y].abs_path, y, tab.entry_list[y].indent_level + 1)
+		local scan_results = tab:get_entry_list(tab.entry_list[entry_y].abs_path, entry_y, tab.entry_list[entry_y].indent_level + 1)
 		-- Don't run any of this if there's nothing in the dir we scanned, pointless
 		if scan_results ~= nil then
 			-- Will hold all the old values + new scan results
@@ -302,9 +247,9 @@ local function uncompress_target(y)
 				tab:resize(tree_view:GetView().Width + tab.entry_list[y].indent_level)
 			end
 		end
-
+		tab.entry_list[entry_y].is_open =
 		tab:view_refresh()
-	end
+	
 end
 
 
@@ -518,20 +463,12 @@ end
 
 -- open_tree setup's the view
 local function open_tree()
-	tab:open_tree()
+	tab:open()
 	tree_view = tab.curPane
 end
 
 
 
--- toggle_tree will toggle the tree view visible (create) and hide (delete).
-function toggle_tree()
-	if not tab.is_open then
-		open_tree()
-	else
-		tab:close()
-	end
-end
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- Functions exposed specifically for the user to bind
@@ -540,7 +477,7 @@ end
 
 function uncompress_at_cursor()
 	if micro.CurPane() == tree_view then
-		uncompress_target(utils.get_safe_y(tree_view))
+		tab:expand_directory_at_cursor()
 	end
 end
 
@@ -629,7 +566,7 @@ function try_open_at_cursor()
 		return
 	end
 
-	try_open_at_y(tree_view.Cursor.Loc.Y, 'vsplit')
+	tab:load_entry(tree_view.Cursor.Loc.Y, 'vsplit')
 end
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -690,9 +627,8 @@ end
 
 -- FIXME: Workaround for the weird 2-index movement on cursordown
 function preCursorDown(view)
-	if view == tree_view then
-		tree_view.Cursor:Down()
-		utils.select_line(tree_view)
+	if tab:get_is_selected() then
+		--tab.action:cursor_move_down()
 		-- Don't actually go down, as it moves 2 indicies for some reason
 		return false
 	end
@@ -709,10 +645,7 @@ function preParagraphPrevious(view)
 	end
 end
 
--- Up
-function onCursorUp(view)
-	selectline_if_tree(view)
-end
+
 
 -- Alt-Shift-}
 -- Go to next dir (if exists)
@@ -753,6 +686,8 @@ function onPreviousSplit(view)
 end
 
 function preMousePress(view, event)
+
+
 	if view == tree_view and event then
 		if type(event.Position) == "function" then
 			local x, y = event:Position()
@@ -760,7 +695,7 @@ function preMousePress(view, event)
 				-- Fixes the y because softwrap messes with it
 				local _, new_y = tree_view:GetMouseClickLocation(x, y)
 				-- Try to open whatever is at the click's y index
-				try_open_at_y(new_y, 'vsplit')
+				tab:load_entry(new_y, 'vsplit')
 			end
 		end
 		-- Don't actually allow the mousepress to trigger, so we avoid highlighting stuff
@@ -768,32 +703,13 @@ function preMousePress(view, event)
 	end
 end
 
--- Up
-function preCursorUp(view)
-	if view == tree_view then
-		-- Disallow selecting past the ".." in the tree
-		if tree_view.Cursor.Loc.Y == 2 then
-			return false
-		end
-	end
-end
-
--- Left
-function preCursorLeft(view)
-	if view == tree_view then
-		-- +1 because of Go's zero-based index
-		-- False to not delete y
-		compress_target(utils.get_safe_y(tree_view), false)
-		-- Don't actually move the cursor, as it messes with selection
-		return false
-	end
-end
-
 -- Right
 function preCursorRight(view)
+
 	if view == tree_view then
 		-- +1 because of Go's zero-based index
-		uncompress_target(utils.get_safe_y(tree_view))
+		tab.view:expand_directory()
+
 		-- Don't actually move the cursor, as it messes with selection
 		return false
 	end
@@ -809,7 +725,7 @@ function preIndentSelection(view)
 		tab_pressed = true
 		-- Open the file
 		-- Using tab instead of enter, since enter won't work with Readonly
-		try_open_at_y(tree_view.Cursor.Loc.Y, 'vsplit')
+		tab:load_entry(tree_view.Cursor.Loc.Y, 'vsplit')
 		-- Don't actually insert a tab
 		return false
 	end
@@ -825,11 +741,9 @@ function preInsertTab(_)
 end
 
 function preInsertNewline(view)
-	if view == tree_view then
-		-- +1 because of Go's zero-based index
-		uncompress_target(utils.get_safe_y(tree_view))
-		-- Don't actually move the cursor, as it messes with selection
-		return false
+	if tab:get_is_selected() then
+		tab.view:toggle_directory()
+		return false -- Don't actually move the cursor, as it messes with selection
 	end
 	return true
 end
@@ -889,6 +803,36 @@ function onCommandMode(_)
 		--view_show(new_dir)todo
 	end
 end
+
+
+
+
+-- Up
+function preCursorUp()
+	-- Disallow selecting past the ".." in the tab
+	if not tab:get_is_selected() or tab.view:get_cursor_y() == 2 then
+		return false
+	end
+end
+
+function onCursorUp(view)
+	tab.action:highlight_current_line()
+end
+
+
+-- Left
+function preCursorLeft(view)
+	if view == tree_view then
+		-- +1 because of Go's zero-based index
+		-- False to not delete y
+		tab.view:collapse_directory()
+
+		--compress_target(utils.get_safe_y(tree_view), false)
+		-- Don't actually move the cursor, as it messes with selection
+		return false
+	end
+end
+
 
 ------------------------------------------------------------------
 -- Fail a bunch of useless actions
@@ -1016,6 +960,9 @@ function preSelectAll(view)
 end
 
 function init()
+
+	current_dir = os.Getwd()
+	tab = Tab:new(micro.CurPane(), current_dir)
 	-- Let the user disable showing of dotfiles like ".editorconfig" or ".DS_STORE"
 	config.RegisterCommonOption('filemanager', 'showdotfiles', true)
 	-- Let the user disable showing files ignored by the VCS (i.e. gitignored)
@@ -1033,8 +980,10 @@ function init()
 	-- Use file icon in status bar
 	micro.SetStatusInfoFn('filemanager.FileIcon')
 
+
 	-- Open/close the tree view
-	config.MakeCommand('tree', toggle_tree, config.NoComplete)
+
+	config.MakeCommand('tree', Tab.toggle, config.NoComplete)
 	-- Rename the file/dir under the cursor
 	config.MakeCommand('rename', rename_at_cursor, config.NoComplete)
 	-- Create a new file
@@ -1047,14 +996,14 @@ function init()
 	-- Command to open current selection in vsplit
 	config.MakeCommand('vopen', function()
 		if tree_view ~= nil then
-			try_open_at_y(tree_view.Cursor.Loc.Y, 'vsplit')
+			tab:load_entry(tree_view.Cursor.Loc.Y, 'vsplit')
 		end
 	end, config.NoComplete)
 
 	-- Command to open current selection in hsplit
 	config.MakeCommand('hopen', function()
 		if tree_view ~= nil then
-			try_open_at_y(tree_view.Cursor.Loc.Y, 'hsplit')
+			tab:load_entry(tree_view.Cursor.Loc.Y, 'hsplit')
 		end
 	end, config.NoComplete)
 
@@ -1067,8 +1016,7 @@ function init()
 
 
 
-	current_dir = os.Getwd()
-	tab = Tab:new(micro.CurPane(), current_dir)
+
 	-- NOTE: This must be below the syntax load command or coloring won't work
 	-- Just auto-open if the option is enabled
 	-- This will run when the plugin first loads
@@ -1076,6 +1024,11 @@ function init()
 		-- Check for safety on the off-chance someone's init.lua breaks this
 		if tree_view == nil then
 			open_tree()
+
+
+			micro.InfoBar():Error(utils.get_buffer_end(tree_view))
+
+		--	buf.EventHandler:Insert(, "table.concat(lines)")
 			-- Puts the cursor back in the empty view that initially spawns
 			-- This is so the cursor isn't sitting in the tree view at startup
 			--micro.CurPane():NextSplit()

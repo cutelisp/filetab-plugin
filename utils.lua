@@ -3,6 +3,7 @@ local micro = import('micro')
 
 local golib_ioutil = import('ioutil')
 local shell = import('micro/shell')
+local buffer = import('micro/buffer')
 
 local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 
@@ -11,7 +12,6 @@ local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 function Icons()
 	return icon.Icons()
 end
-
 
 -- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
 -- aka this returns a list of gitignored files (but for whatever VCS is found)
@@ -42,7 +42,6 @@ local function get_ignored_files(tar_dir)
 	return readout_results
 end
 
-
 -- Returns a list of all the files of directory
 local function get_files(directory, include_dotfiles)
 
@@ -58,11 +57,6 @@ local function get_files(directory, include_dotfiles)
 	end
 	return files
 end
-
-
-
-
-
 
 -- Consant for the min with of tree
 local function get_tree_min_with()
@@ -106,6 +100,9 @@ local function get_basename(path)
 	end
 end
 
+local function get_buffer_end(pane)
+	return buffer.Loc(0, micro.CurPane().Buf:End().Y)
+end
 
 
 -- Hightlights the line when you move the cursor up/down
@@ -197,18 +194,23 @@ local function is_dir(path)
 	end
 end
 
+-- Função para inserir a tabela B na tabela A a partir da posição X
+local function insert_table_into_table(table_a, table_b, position)
+    -- Insere elementos de insert_table na posição especificada
+    for i = 1, #table_b do
+        table.insert(table_a, position + i , table_b[i])
+    end
+end
 
 -- Returns true/false if the file is a dotfile
 local function is_dotfile(file_name)
 	return string.sub(file_name, 1, 1) == '.'
 end
 
-
 -- Returns true/false if the file is a dotfile todo
 local function is_ignored_file(file_name)
 	return false
 end
-
 
 -- Simple true/false if scanlist is currently empty
 local function is_scanlist_empty(scanlist)
@@ -283,6 +285,8 @@ return {
 	is_entry_in_table = is_entry_in_table,
 	is_path = is_path,
 	is_dir = is_dir,
+	insert_table_into_table = insert_table_into_table,
 	is_dotfile = is_dotfile,
 	is_scanlist_empty = is_scanlist_empty,
+	get_buffer_end = get_buffer_end,
 }

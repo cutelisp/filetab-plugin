@@ -5,7 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9b120bbc-97c7-4a69-852e-32f41745b1fb" name="Changes" comment="tons of things">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/entry.lua" beforeDir="false" afterPath="$PROJECT_DIR$/entry.lua" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/filemanager.lua" beforeDir="false" afterPath="$PROJECT_DIR$/filemanager.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/repo.json" beforeDir="false" afterPath="$PROJECT_DIR$/repo.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tab.lua" beforeDir="false" afterPath="$PROJECT_DIR$/tab.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils.lua" beforeDir="false" afterPath="$PROJECT_DIR$/utils.lua" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -16,6 +21,7 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/tab.lua" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$APPLICATION_PLUGINS_DIR$/EmmyLua/std/Lua53/global.lua" root0="SKIP_INSPECTION" />
     <setting file="file://$APPLICATION_PLUGINS_DIR$/EmmyLua/std/Lua53/string.lua" root0="SKIP_INSPECTION" />
     <setting file="file://$APPLICATION_PLUGINS_DIR$/EmmyLua/std/Lua53/table.lua" root0="SKIP_INSPECTION" />
@@ -44,7 +50,7 @@
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;settings.sync&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
@@ -88,6 +94,9 @@
       <workItem from="1741965420608" duration="533000" />
       <workItem from="1741965968913" duration="85000" />
       <workItem from="1741966072507" duration="152000" />
+      <workItem from="1742320156934" duration="225000" />
+      <workItem from="1742320490763" duration="92000" />
+      <workItem from="1742323335035" duration="7000" />
     </task>
     <task id="LOCAL-00001" summary="tons of things">
       <option name="closed" value="true" />
@@ -102,6 +111,17 @@
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="tons of things" />

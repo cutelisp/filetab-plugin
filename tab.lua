@@ -3,70 +3,64 @@ local micro = import('micro')
 local os = import('os')
 local golib_ioutil = import('ioutil')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local icon_utils = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
-local icons = icon_utils.Icons()
 local buffer = import('micro/buffer')
 local filepath = import('path/filepath')
 local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
+local View = dofile(config.ConfigDir .. '/plug/filemanager/view.lua')
+local Entry_list = dofile(config.ConfigDir .. '/plug/filemanager/entry_list.lua')
+local Action = dofile(config.ConfigDir .. '/plug/filemanager/action.lua')
 
--- Entry is the object of scanlist
+
 local Tab = {}
 Tab.__index = Tab
 
 -- Return a new object used when adding to scanlist
-function Tab:new(file_name, current_directory)
+function Tab:new(pane, current_directory)
     local instance = setmetatable({}, Tab)
-    instance.curPane = file_name
+	instance.is_selected = true
+    instance.curPane = pane
     instance.min_width = 30
     instance.current_directory = current_directory
     instance.is_open = false
     instance.entry_list = {}
+	instance.view = View:new(pane)
+    instance.action = Action:new(pane)
+
     return instance
 end
 
-
--- Set the width of tab to num & lock it
-function Tab:get_cursor_y(num)
-	return self.curPane.Cursor.Loc.Y
+function Tab:enter_key_pressed()
+	self.view:toggle_directory()
 end
 
-
--- Set the width of tab to num & lock it
-function Tab:resize(num)
-    if num < self.min_width then
-        self.curPane:ResizePane(self.min_width)
-    else
-        self.curPane:ResizePane(num)
-    end
+-- Changes the current directory, get the new entry_list, refresh the view and move the cursor to the ".." by default
+function Tab:load(directory)
+	self.current_dir = directory
+	self.entry_list = Entry_list:new(directory, 0, 0)
+	self.view:refresh(self.entry_list, self.current_directory)
+	self.view:move_cursor_top()
 end
 
-
--- Delete everything in the view/buffer
-function Tab:clear()
-    self.curPane.Buf.EventHandler:Remove(self.curPane.Buf:Start(), self.curPane.Buf:End())
-end
-
-
--- close_tree will close the tree plugin view and release memory.
-function Tab:close()
-	if self.curPane ~= nil then
-        self.curPane:Quit()
-        self.is_open = false
+-- (Tries to) go load one "step" from the current directory
+function Tab:load_back_directory()
+	-- Use Micro's dirname to get everything but the current dir's path
+	local one_back_dir = filepath.Dir(self.current_directory)
+	-- Try opening, assuming they aren't at "root", by checking if it matches last dir
+	if one_back_dir ~= self.current_directory then
+		self:load(one_back_dir)
 	end
 end
-
 
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
 function Tab:setup_settings()
     -- Set the width of tree_view to 30% & lock it
     self:resize(self.min_width)
-
     -- tree_view.Buf.Type = buffer.BTLog
     -- Set the type to unsavable
     self.curPane.Buf.Type.Scratch = true
     self.curPane.Buf.Type.Readonly = true
     -- Softwrap long strings (the file/dir paths)
-    self.curPane.Buf:SetOptionNative('softwrap', true)
+    self.curPane.Buf:SetOptionNative('softwrap', false)
     -- No line numbering
     self.curPane.Buf:SetOptionNative('ruler', false)
     -- Is this needed with new non-savable settings from being "vtLog"?
@@ -77,150 +71,44 @@ function Tab:setup_settings()
     self.curPane.Buf:SetOptionNative('scrollbar', false)
 end
 
-
--- Delete everything in the view/buffer
-function Tab:print_header()--todo
-    -- Current dir
-    self.curPane.Buf.EventHandler:Insert(buffer.Loc(0, 0), "self.current_dir" .. '\n')
-    -- An ASCII separator
-    self.curPane.Buf.EventHandler:Insert(buffer.Loc(0, 1), utils.repeat_str('─', self.curPane:GetView().Width) .. '\n') -- TODO this \n is probably wrong
-    -- The ".." and use a newline if there are things in the current dir
-    self.curPane.Buf.EventHandler:Insert(buffer.Loc(0, 2), (#self.entry_list > 0 and '..\n' or '..'))
-end
-
-
--- Highlights the line when you move the cursor up/down
-function Tab:move_cursor(line_number)
-
-    -- Ensure line_number is within valid bounds
-    if line_number and line_number > 1 then
-        self.curPane.Cursor.Loc.Y = line_number
+-- Set the width of tab to num & lock it
+function Tab:resize(num)
+    if num < self.min_width then
+        self.curPane:ResizePane(self.min_width)
     else
-        self.curPane.Cursor.Loc.Y = 2
+        self.curPane:ResizePane(num)
     end
-
-    -- Puts the cursor back in bounds (if it isn't) for safety
-    self.curPane.Cursor:Relocate()
-
-    -- Makes sure the cursor is visible (if it isn't)
-    -- (false) means no callback
-    self.curPane:Center()
-
-    -- Highlight the current line where the cursor is
-    self.curPane.Cursor:SelectLine()
 end
 
-
-function Tab:view_refresh()
-
-	local cursor_y = self:get_cursor_y()
-
-	self:resize(self.min_width)
-	self:clear()
-
-
-	self:print_header()
-	-- Holds the current basename of the path (purely for display)
-	local content
-
-	-- NOTE: might want to not do all these concats in the loop, it can get slow
-	for i = 1, #self.entry_list do
-		-- Newlines are needed for all inserts except the last
-		-- If you insert a newline on the last, it leaves a blank spot at the bottom
-		content = self.entry_list[i]:get_content() .. (i < #self.entry_list and '\n' or '')
-
-		-- Insert line-by-line to avoid out-of-bounds on big folders
-		-- +2 so we skip the 0/1/2 positions that hold the top dir/separator/..
-		self.curPane.Buf.EventHandler:Insert(buffer.Loc(0, i + 2), content)
+-- close_tree will close the tree plugin view and release memory.
+function Tab:close()
+	if self.curPane ~= nil then
+        self.curPane:Quit()
+        self.is_open = false
 	end
-
-	-- Resizes all views after messing with ours
-	self.curPane:Tab():Resize() -- todo idk wts this
-	self:move_cursor(cursor_y)
-
-end
-
-
--- Structures the output of the scanned directory content to be used in the scanlist table
--- This is useful for both initial creation of the tree, and when nesting with uncompress_target()
-function Tab:get_entry_list(directory, ownership, indent_level)
-	----local show_dotfiles = config.GetGlobalOption('filemanager.showdotfiles')
-	--local show_ignored_files = config.GetGlobalOption('filemanager.showignored') --TODO not working ignored_files not fetching correctly ig
-
-	-- Gets a list of all the files names in the current dir
-	local all_files_names, error_message = utils.get_files_names(directory, true, true)
-
-	-- files will be nil if the directory is read-protected (no permissions)
-	if all_files_names == nil then
-		micro.InfoBar():Error('Error scanning dir: ', directory, ' | ', error_message)
-		return nil
-	end
-
-	-- The list of directories & files entries to be returned (and eventually put in the view)
-	local entries_directories = {}
-	local entries_files = {}
-	local entry_name
-
-	for i = 1, #all_files_names do
-		entry_name = all_files_names[i]
-
-		local new_entry = Entry:new(entry_name, filepath.Join(directory, entry_name), ownership, indent_level)
-
-		-- Logic to make sure all directories are appended first to entries table so they are shown first
-		if not new_entry.is_dir then
-			-- If this is a file, add it to (temporary) files
-			entries_files[#entries_files + 1] = new_entry
-		else
-			-- Otherwise, add to entries
-			entries_directories[#entries_directories + 1] = new_entry
-		end
-	end
-
-	-- Append all file entries to directories entries (So they can be correctly sorted)
-	utils.get_appended_tables(entries_directories, entries_files)
-
-	-- Return all entries (directories + files)
-	return entries_directories
-end
-
-
--- Moves the cursor to the ".." in tree_view (2 beacuase ".." it's on 3rd line)
-function Tab:move_cursor_top()
-	self:move_cursor(2)
-end
-
-
--- Changes the current directoty, get the new entry_list, refresh the view and move the cursor to the ".." by default
-function Tab:view_show(directory)
-	-- Clear the highest since this is a full refresh
-	--highest_visible_indent = 0 todo
-	self.current_dir = directory
-	-- 0 ownership because this is a scan of the base dir, 0 indent because this is the base dir
-	self.entry_list = self:get_entry_list(directory, 0, 0)
-	self:view_refresh()
-	self:move_cursor_top()
 end
 
 -- open_tree setup's the view
-function Tab:open_tree()
+function Tab:open()
 	-- Open a new Vsplit (on the very left)
 	micro.CurPane():VSplitIndex(buffer.NewBuffer('', ''), true)
 	self.is_open = true
 	self:setup_settings()
-	self:view_show(os.Getwd())
+	self:load(self.current_directory)
+end
+
+-- toggle_tree will toggle the tree view visible (create) and hide (delete).
+function Tab:toggle()
+	if self.is_open then
+		self.close()
+	else
+		self:open()
+	end
 end
 
 
 -- toggle_tree will toggle the tree view visible (create) and hide (delete).
-function Tab:toggle_tree()
-	if not tab.is_open then
-		tab:open_tree()
-	else
-		tab:close()
-	end
+function Tab:get_is_selected()
+	return self.is_selected
 end
-
 return Tab
-
-
-
