@@ -1,18 +1,14 @@
 local config = import('micro/config')
 local micro = import('micro')
-local os = import('os')
-local golib_ioutil = import('ioutil')
 local buffer = import('micro/buffer')
 local filepath = import('path/filepath')
-local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
+--local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
 local Entry_list = dofile(config.ConfigDir .. '/plug/filemanager/entry_list.lua')
 
 
 local View = {}
 View.__index = View
 
--- Return a new object used when adding to scanlist
 function View:new(pane)
     local instance = setmetatable({}, View)
     instance.pane = pane
@@ -36,12 +32,12 @@ end
 -- Print static header,directory, an ASCII separator, The ".." and use a newline if there are things in the current directory
 function View:print_header()--todo
     self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 0), self.directory .. '\n')
-    self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 1), utils.repeat_str('─', self.pane:GetView().Width) .. '\n') -- TODO this \n is probably wrong
+    self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 1), string.rep('─', self.pane:GetView().Width) .. '\n')-- TODO this \n is probably wrong
     self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 2), (self.entry_list:size() > 0 and '..\n' or '..'))
 end
 
 function View:print_entries()
-    self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 3), table.concat(self.entry_list:get_content()))---table.concat(lines)
+    self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 3), table.concat(self.entry_list:get_content()))
 end
 
 -- Delete everything in the view/buffer
@@ -60,12 +56,9 @@ end
 
 function View:expand_directory(line_number, entry)
     local entry = entry or self:get_entry_at_line(line_number or self:get_cursor_y())
+   -- local entryz = self:get_entry_at_line(40)
 
     if not entry.is_open then
-        if not entry:get_entry_list() then
-            entry_list = Entry_list:new(entry.abs_path, 0,0)
-            entry:set_entry_list(entry_list)
-	    end
         entry:set_is_open(true)
         self:refresh()
     end
@@ -79,11 +72,9 @@ function View:toggle_directory(line_number)
     else
         self:expand_directory(_, entry)
     end
-
 end
 
--- Highlights the line when you move the cursor up/down
-function View:move_cursor(line_number) -- todo no one is calling this
+function View:move_cursor(line_number)
     -- Ensure line_number is within valid bounds
     if line_number >= 2 then
         self.pane.Cursor.Loc.Y = line_number
@@ -102,11 +93,19 @@ function View:highlight_current_line() -- todo no one is calling this
     self.pane.Cursor:SelectLine()
 end
 
-
-
 -- Moves the cursor to the ".." in tree_view (2 because ".." it's on 3rd line)
 function View:move_cursor_top()
 	self:move_cursor(2)
+end
+
+-- Moves the cursor to the directory of the cursor's file
+function View:move_cursor_to_owner()
+    current_cursor_y = self:get_cursor_y()
+    owner = self:get_entry_at_line(current_cursor_y).owner
+    if owner then 
+        owner_line = self:get_line_at_entry(owner)
+        self:move_cursor(owner_line)
+    end
 end
 
 function View:get_cursor_y()
@@ -122,8 +121,24 @@ function View:get_entry_at_line(line_number)
 	return all_entries[line_number - 2]
 end
 
+function View:get_line_at_entry(entry)
+    local all_entries = self.entry_list:get_all_nested_entries()
+
+    for i = 1, #all_entries do
+        if all_entries[i] == entry then 
+            return i + 2
+        end
+    end
+	return nil
+end
+
 function View:set_entry_list(entry_list)
     self.entry_list = entry_list
+end
+
+
+function View:is_cursor_in_header()
+    return self:get_cursor_y() < 3 
 end
 
 function View:set_directory(directory)

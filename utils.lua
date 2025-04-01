@@ -1,10 +1,8 @@
 local config = import('micro/config')
 local micro = import('micro')
-
 local golib_ioutil = import('ioutil')
 local shell = import('micro/shell')
 local buffer = import('micro/buffer')
-
 local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 
 
@@ -194,9 +192,7 @@ local function is_dir(path)
 	end
 end
 
--- Função para inserir a tabela B na tabela A a partir da posição X
 local function insert_table_into_table(table_a, table_b, position)
-    -- Insere elementos de insert_table na posição especificada
     for i = 1, #table_b do
         table.insert(table_a, position + i , table_b[i])
     end

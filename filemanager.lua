@@ -464,7 +464,7 @@ end
 -- open_tree setup's the view
 local function open_tree()
 	tab:open()
-	tree_view = tab.curPane
+	tree_view = tab.pane
 end
 
 
@@ -610,6 +610,18 @@ end
 -- Other than things we flat-out fail
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+local function is_tab_selected()
+	return tab and tab:get_is_selected()
+end
+
+
+
+
+
+
+
+
+
 -- Close current
 function preQuit(view)
 	if view == tree_view then
@@ -625,14 +637,6 @@ function preQuitAll(_)
 	tab:close()
 end
 
--- FIXME: Workaround for the weird 2-index movement on cursordown
-function preCursorDown(view)
-	if tab:get_is_selected() then
-		--tab.action:cursor_move_down()
-		-- Don't actually go down, as it moves 2 indicies for some reason
-		return false
-	end
-end
 
 
 -- Alt-Shift-{
@@ -657,25 +661,10 @@ function preParagraphNext(view)
 	end
 end
 
--- Ctrl-Up
-function onCursorStart(view)
-	aftermove_if_tree(view)
-end
 
--- PageUp
-function onCursorPageUp(view)
-	aftermove_if_tree(view)
-end
 
--- PageDown
-function onCursorPageDown(view)
-	selectline_if_tree(view)
-end
 
--- Ctrl-Down
-function onCursorEnd(view)
-	selectline_if_tree(view)
-end
+
 
 function onNextSplit(view)
 	selectline_if_tree(view)
@@ -686,8 +675,6 @@ function onPreviousSplit(view)
 end
 
 function preMousePress(view, event)
-
-
 	if view == tree_view and event then
 		if type(event.Position) == "function" then
 			local x, y = event:Position()
@@ -703,67 +690,14 @@ function preMousePress(view, event)
 	end
 end
 
--- Right
-function preCursorRight(view)
 
-	if view == tree_view then
-		-- +1 because of Go's zero-based index
-		tab.view:expand_directory()
 
-		-- Don't actually move the cursor, as it messes with selection
-		return false
-	end
-end
 
--- Workaround for tab getting inserted into opened files
--- Ref https://github.com/zyedidia/micro/issues/992
-local tab_pressed = false
 
--- Tab
-function preIndentSelection(view)
-	if view == tree_view then
-		tab_pressed = true
-		-- Open the file
-		-- Using tab instead of enter, since enter won't work with Readonly
-		tab:load_entry(tree_view.Cursor.Loc.Y, 'vsplit')
-		-- Don't actually insert a tab
-		return false
-	end
-end
 
--- Workaround for tab getting inserted into opened files
--- Ref https://github.com/zyedidia/micro/issues/992
-function preInsertTab(_)
-	if tab_pressed then
-		tab_pressed = false
-		return false
-	end
-end
 
-function preInsertNewline(view)
-	if tab:get_is_selected() then
-		tab.view:toggle_directory()
-		return false -- Don't actually move the cursor, as it messes with selection
-	end
-	return true
-end
 
--- CtrlL
-function onJumpLine(view)
-	-- Highlight the line after jumping to it
-	-- Also moves you to index 3 (2 in zero-base) if you went to the first 2 lines
-	aftermove_if_tree(view)
-end
 
--- ShiftUp
-function preSelectUp(view)
-	if view == tree_view then
-		-- Go to the file/dir's parent dir (if any)
-		goto_parent_dir()
-		-- Don't actually selectup
-		return false
-	end
-end
 
 -- CtrlF
 function preFind(view)
@@ -807,32 +741,119 @@ end
 
 
 
--- Up
+
+
+-- Tab
+-- Workaround for tab getting inserted into opened files
+-- Ref https://github.com/zyedidia/micro/issues/992
+local tab_pressed = false
+function preIndentSelection(view)
+	if tab:get_is_selected() then
+		tab_pressed = true
+		tab:load(tab.view:get_entry_at_line(tab.view:get_cursor_y()).abs_path)
+		return false
+	end
+end
+
+function preInsertTab(_)
+	if tab_pressed then
+		tab_pressed = false
+		return false
+	end
+end
+
+-- Enter
+function preInsertNewline()
+	if tab:get_is_selected() then
+		if tab.view:get_cursor_y() == 2 then
+		  	tab.action:load_back_directory(tab.current_directory)	
+		else
+			tab.view:toggle_directory()
+		end
+		return false
+	end
+end
+
+-- PageUp
+function onCursorPageUp()
+	if is_tab_selected() then
+		tab.view:move_cursor_top()
+		return false
+	end
+end
+
+-- PageDown
+function onCursorPageDown()
+	if is_tab_selected() then
+		tab.view:highlight_current_line()
+	end
+end
+
+-- Up Arrow
 function preCursorUp()
 	-- Disallow selecting past the ".." in the tab
-	if not tab:get_is_selected() or tab.view:get_cursor_y() == 2 then
+	if is_tab_selected() and tab.view:get_cursor_y() == 2 then
+		return false
+	end
+
+end
+
+function onCursorUp()
+	if is_tab_selected() then
+		tab.view:highlight_current_line()
+	end
+end
+
+-- Down Arrow
+function onCursorDown()
+	if is_tab_selected() then
+		tab.view:highlight_current_line()
+	end
+end
+
+-- Left Arrow
+function preCursorLeft()
+	if is_tab_selected() then
+		if not tab.view:is_cursor_in_header() then
+			tab.view:collapse_directory()
+		end
 		return false
 	end
 end
 
-function onCursorUp(view)
-	tab.action:highlight_current_line()
-end
-
-
--- Left
-function preCursorLeft(view)
-	if view == tree_view then
-		-- +1 because of Go's zero-based index
-		-- False to not delete y
-		tab.view:collapse_directory()
-
-		--compress_target(utils.get_safe_y(tree_view), false)
-		-- Don't actually move the cursor, as it messes with selection
+-- Right Arrow
+function preCursorRight()
+	if is_tab_selected() then
+		if not tab.view:is_cursor_in_header() then
+			tab.view:expand_directory()
+		end
 		return false
 	end
 end
 
+-- Ctrl + Up
+function preCursorStart(view)
+	if is_tab_selected() then
+		tab.view:move_cursor_top()
+		return false
+	end
+end
+
+-- Ctrl + Down
+function onCursorEnd(view)
+	if is_tab_selected() then
+		tab.view:highlight_current_line()
+	end
+end
+
+
+-- Shift + Up
+function preSelectUp()
+	if is_tab_selected() then
+		tab.view:move_cursor_to_owner()
+		return false
+	end
+end
 
 ------------------------------------------------------------------
 -- Fail a bunch of useless actions
