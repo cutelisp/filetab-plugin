@@ -28,7 +28,7 @@ function Tab:load(directory)
 	self.current_directory = directory
 	self.entry_list = Entry:get_new_entry_list(directory, nil)
 	self.view:refresh(self.entry_list, self.current_directory)
-	self.view:move_cursor_top()
+	self.view.Cursor:move_top()
 end
 
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
@@ -41,6 +41,7 @@ function Tab:setup_settings()
     self.pane.Buf.Type.Readonly = true
     -- Softwrap long strings (the file/dir paths)
     self.pane.Buf:SetOptionNative('softwrap', false)
+  --  self.pane.Buf:SetOptionNative('scrollbar', true)
     -- No line numbering
     self.pane.Buf:SetOptionNative('ruler', false)
     -- Is this needed with new non-savable settings from being "vtLog"?
@@ -53,18 +54,12 @@ end
 
 -- Set the width of tab to num 
 function Tab:resize(num)
-    if num < self.min_width then
-        self.pane:ResizePane(self.min_width)
-    else
-        self.pane:ResizePane(num)
-    end
+    self.pane:ResizePane(num)
 end
 
 function Tab:close()
-	if self.pane ~= nil then
-        self.pane:Quit()
-        self.is_open = false
-	end
+    self.pane:Quit()
+    self.is_open = false
 end
 
 function Tab:open()

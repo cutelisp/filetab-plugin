@@ -40,114 +40,6 @@ local highest_visible_indent = 0
 
 
 
--- Find everything nested under the target, and remove it from the scanlist
-local function compress_target(y, delete_y)
-	local icons = Icons()
-
-	-- Can't compress the top stuff, or if there's nothing there, so exit early
-	if y == 0 or utils.is_scanlist_empty(scanlist) then
-		return
-	end
-	-- Check if the target is a dir, since files don't have anything to compress
-	-- Also make sure it's actually an uncompressed dir by checking the gutter message
-	if tab.entry_list[y].icon == icons['dir_open'] then
-		local delete_index
-		-- Add the original target y to stuff to delete
-		local delete_under = { [1] = y }
-		local new_table = {}
-		local del_count = 0
-		-- Loop through the whole table, looking for nested content, or stuff with ownership == y...
-		-- and delete matches. y+1 because we want to start under y, without actually touching y itself.
-		for i = 1, #tab.entry_list do
-			delete_index = false
-			-- Don't run on y, since we don't always delete y
-			if i ~= y then
-				-- On each loop, check if the ownership matches
-				for x = 1, #delete_under do
-					-- Check for something belonging to a thing to delete
-					if tab.entry_list[i].owner == delete_under[x] then
-						-- Delete the target if it has an ownership to our delete target
-						delete_index = true
-						-- Keep count of total deleted (can't use #delete_under because it's for deleted dir count)
-						del_count = del_count + 1
-						-- Check if an uncompressed dir
-						if tab.entry_list[i].icon == icons['dir_open'] then
-							-- Add the index to stuff to delete, since it holds nested content
-							delete_under[#delete_under + 1] = i
-						end
-						-- See if we're on the "deepest" nested content
-						if tab.entry_list[i].indent_level == highest_visible_indent and tab.entry_list[i].indent_level > 0 then
-							-- Save the lower indent, since we're minimizing/deleting nested dirs
-							highest_visible_indent = highest_visible_indent - 1
-						end
-						-- Nothing else to do, so break this inner loop
-						break
-					end
-				end
-			end
-			if not delete_index then
-				-- Save the index in our new table
-				new_table[#new_table + 1] = tab.entry_list[i]
-			end
-		end
-
-		tab.entry_list = new_table
-		tab.entry_list = new_table
-
-		if del_count > 0 then
-			-- Ownership adjusting since we're deleting an index
-			for i = y + 1, #tab.entry_list do
-				-- Don't touch root file/dirs
-				if tab.entry_list[i].owner > y then
-					-- Minus ownership, on everything below i, the number deleted
-					tab.entry_list[i]:decrease_owner(del_count)
-				end
-			end
-		end
-
-		-- If not deleting, then update the gutter message to be + to signify compressed
-		if not delete_y then
-			-- Update the dir message
-			tab.entry_list[y].icon = icons['dir']
-		end
-	elseif config.GetGlobalOption('filemanager.compressparent') and not delete_y then
-		goto_parent_dir()
-		-- Prevent a pointless refresh of the view
-		return
-	end
-
-	-- Put outside check above because we call this to delete targets as well
-	if delete_y then
-		local second_table = {}
-		-- Quickly remove y
-		for i = 1, #tab.entry_list do
-			if i == y then
-				-- Reduce everything's ownership by 1 after y
-				for x = i + 1, #tab.entry_list do
-					-- Don't touch root file/dirs
-					if tab.entry_list[x].owner > y then
-						-- Minus 1 since we're just deleting y
-						tab.entry_list[x]:decrease_owner(1)
-					end
-				end
-			else
-				-- Put everything but y into the temporary table
-				second_table[#second_table + 1] = tab.entry_list[i]
-			end
-		end
-		-- Put everything (but y) back into scanlist, with adjusted ownership values
-		tab.entry_list = second_table
-		tab.entry_list = second_table
-	end
-
-	if tree_view:GetView().Width > (utils.get_tree_min_with() + highest_visible_indent) then
-		-- Shave off some width
-		tab:resize(min_width + highest_visible_indent)
-	end
-
-	tab:view_refresh()
-end
-
 -- Prompts the user for deletion of a file/dir when triggered
 -- Not local so Micro can access it
 function prompt_delete_at_cursor()
@@ -186,70 +78,6 @@ function prompt_delete_at_cursor()
 			end
 		end
 	)
-end
-
-
-
-
--- Opens the dir's get_content nested under itself
-local function uncompress_target(entry_y)
-	
-	if not tab.entry_list[entry_y].is_dir or tab.entry_list[entry_y].is_open or entry_y < 2  then
-		return
-	end
-	-- Only uncompress if it's a dir and it's not already uncompressed
-
-		-- Get a new scanlist with results from the scan in the target dir
-		local scan_results = tab:get_entry_list(tab.entry_list[entry_y].abs_path, entry_y, tab.entry_list[entry_y].indent_level + 1)
-		-- Don't run any of this if there's nothing in the dir we scanned, pointless
-		if scan_results ~= nil then
-			-- Will hold all the old values + new scan results
-			local new_table = {}
-			-- By not inserting in-place, some unexpected results can be avoided
-			-- Also, table.insert actually moves values up (???) instead of down
-			for i = 1, #tab.entry_list do
-				-- Put the current val into our new table
-				new_table[#new_table + 1] = tab.entry_list[i]
-				if i == y then
-					-- Fill in the scan results under y
-					for x = 1, #scan_results do
-						new_table[#new_table + 1] = scan_results[x]
-					end
-					-- Basically "moving down" everything below y, so ownership needs to increase on everything
-					for inner_i = y + 1, #tab.entry_list do
-						-- When root not pushed by inserting, don't change its ownership
-						-- This also has a dual-purpose to make it not effect root file/dirs
-						-- since y is always >= 3
-						if tab.entry_list[inner_i].owner > y then
-							-- Increase each indicies ownership by the number of scan results inserted
-							tab.entry_list[inner_i]:increase_owner(#scan_results)
-						end
-					end
-				end
-			end
-
-			-- Update our scanlist with the new values
-			tab.entry_list = new_table
-			tab.entry_list = new_table
-
-		end
-
-		-- Change to minus to signify it's uncompressed
-		tab.entry_list[y].icon = icons['dir_open']
-
-		-- Check if we actually need to resize, or if we're nesting at the same indent
-		-- Also check if there's anything in the dir, as we don't need to expand on an empty dir
-		if scan_results ~= nil then
-			if tab.entry_list[y].indent_level > highest_visible_indent and #scan_results >= 1 then
-				-- Save the new highest indent
-				highest_visible_indent = tab.entry_list[y].indent_level
-				-- Increase the width to fit the new nested content
-				tab:resize(tree_view:GetView().Width + tab.entry_list[y].indent_level)
-			end
-		end
-		tab.entry_list[entry_y].is_open =
-		tab:view_refresh()
-	
 end
 
 
@@ -461,12 +289,6 @@ function new_dir(_, args)
 	create_filedir(dir_name, true)
 end
 
--- open_tree setup's the view
-local function open_tree()
-	tab:open()
-	tree_view = tab.pane
-end
-
 
 
 
@@ -475,44 +297,9 @@ end
 -- Some are used in callbacks as well
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function uncompress_at_cursor()
-	if micro.CurPane() == tree_view then
-		tab:expand_directory_at_cursor()
-	end
-end
 
-function compress_at_cursor()
-	if micro.CurPane() == tree_view then
-		-- False to not delete y
-		compress_target(utils.get_safe_y(tree_view), false)
-	end
-end
 
--- Goes up 1 visible directory (if any)
--- Not local so it can be bound
-function goto_prev_dir()
-	local icons = Icons()
 
-	if micro.CurPane() ~= tree_view or utils.is_scanlist_empty(scanlist) then
-		return
-	end
-
-	local cur_y = utils.get_safe_y(tree_view)
-	-- If they try to run it on the ".." do nothing
-	if cur_y ~= 0 then
-		local move_count = 0
-		for i = cur_y - 1, 1, -1 do
-			move_count = move_count + 1
-			-- If a dir, stop counting
-			if tab.entry_list[i].icon == icons['dir'] or tab.entry_list[i].icon == icons['dir_open'] then
-				-- Jump to its parent (the ownership)
-				tree_view.Cursor:UpN(move_count)
-				utils.select_line(tree_view)
-				break
-			end
-		end
-	end
-end
 
 -- Goes down 1 visible directory (if any)
 -- Not local so it can be bound
@@ -545,29 +332,8 @@ function goto_next_dir()
 	end
 end
 
--- Goes to the parent directory (if any)
--- Not local so it can be keybound
-function goto_parent_dir()
-	if micro.CurPane() ~= tree_view or utils.is_scanlist_empty(scanlist) then
-		return
-	end
 
-	local cur_y = utils.get_safe_y(tree_view)
-	-- Check if the cursor is even in a valid location for jumping to the owner
-	if cur_y > 0 then
-		-- Jump to its parent (the ownership)
-		tree_view.Cursor:UpN(cur_y - tab.entry_list[cur_y].owner)
-		utils.select_line(tree_view)
-	end
-end
 
-function try_open_at_cursor()
-	if micro.CurPane() ~= tree_view or utils.is_scanlist_empty(scanlist) then
-		return
-	end
-
-	tab:load_entry(tree_view.Cursor.Loc.Y, 'vsplit')
-end
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- Shorthand functions for actions to reduce repeat code
@@ -610,9 +376,6 @@ end
 -- Other than things we flat-out fail
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-local function is_tab_selected()
-	return tab and tab:get_is_selected()
-end
 
 
 
@@ -622,44 +385,16 @@ end
 
 
 
--- Close current
-function preQuit(view)
-	if view == tree_view then
-		-- A fake quit function
-		tab:close()
-		-- Don't actually "quit", otherwise it closes everything without saving for some reason
-		return false
-	end
-end
+
 
 -- Close all
 function preQuitAll(_)
-	tab:close()
+	--tab:close()
 end
 
 
 
--- Alt-Shift-{
--- Go to target's parent directory (if exists)
-function preParagraphPrevious(view)
-	if view == tree_view then
-		goto_prev_dir()
-		-- Don't actually do the action
-		return false
-	end
-end
 
-
-
--- Alt-Shift-}
--- Go to next dir (if exists)
-function preParagraphNext(view)
-	if view == tree_view then
-		goto_next_dir()
-		-- Don't actually do the action
-		return false
-	end
-end
 
 
 
@@ -674,21 +409,7 @@ function onPreviousSplit(view)
 	selectline_if_tree(view)
 end
 
-function preMousePress(view, event)
-	if view == tree_view and event then
-		if type(event.Position) == "function" then
-			local x, y = event:Position()
-			if x and y then
-				-- Fixes the y because softwrap messes with it
-				local _, new_y = tree_view:GetMouseClickLocation(x, y)
-				-- Try to open whatever is at the click's y index
-				tab:load_entry(new_y, 'vsplit')
-			end
-		end
-		-- Don't actually allow the mousepress to trigger, so we avoid highlighting stuff
-		return false
-	end
-end
+
 
 
 
@@ -743,6 +464,11 @@ end
 
 
 
+
+local function is_tab_selected(view)
+	return view == tab.pane 
+end
+
 -- Tab
 -- Workaround for tab getting inserted into opened files
 -- Ref https://github.com/zyedidia/micro/issues/992
@@ -750,7 +476,7 @@ local tab_pressed = false
 function preIndentSelection(view)
 	if tab:get_is_selected() then
 		tab_pressed = true
-		tab:load(tab.view:get_entry_at_line(tab.view:get_cursor_y()).abs_path)
+		tab:load(tab.view:get_entry_at_line(tab.view.Cursor:get_y()).abs_path)
 		return false
 	end
 end
@@ -763,9 +489,9 @@ function preInsertTab(_)
 end
 
 -- Enter
-function preInsertNewline()
-	if tab:get_is_selected() then
-		if tab.view:get_cursor_y() == 2 then
+function preInsertNewline(view)
+	if is_tab_selected(view) then
+		if tab.view.Cursor:get_y() == 2 then
 		  	tab.action:load_back_directory(tab.current_directory)	
 		else
 			tab.view:toggle_directory()
@@ -775,45 +501,46 @@ function preInsertNewline()
 end
 
 -- PageUp
-function onCursorPageUp()
-	if is_tab_selected() then
-		tab.view:move_cursor_top()
+function onCursorPageUp(view)
+	if is_tab_selected(view) then
+		--tab.view:empty_cursor_list()
+
+		tab.view.Cursor:move_top()
 		return false
 	end
 end
 
 -- PageDown
-function onCursorPageDown()
-	if is_tab_selected() then
-		tab.view:highlight_current_line()
+function onCursorPageDown(view)
+	if is_tab_selected(view) then
+		tab.view.Highlight:current_line()
 	end
 end
 
 -- Up Arrow
-function preCursorUp()
+function preCursorUp(view)
 	-- Disallow selecting past the ".." in the tab
-	if is_tab_selected() and tab.view:get_cursor_y() == 2 then
+	if is_tab_selected(view) and tab.view.Cursor:get_y() == 2 then
 		return false
 	end
-
 end
 
-function onCursorUp()
-	if is_tab_selected() then
-		tab.view:highlight_current_line()
+function onCursorUp(view)
+	if is_tab_selected(view) then
+		tab.view.Highlight:current_line()
 	end
 end
 
 -- Down Arrow
-function onCursorDown()
-	if is_tab_selected() then
-		tab.view:highlight_current_line()
+function onCursorDown(view)
+	if is_tab_selected(view) then
+		tab.view.Highlight:current_line()
 	end
 end
 
 -- Left Arrow
-function preCursorLeft()
-	if is_tab_selected() then
+function preCursorLeft(view)
+	if is_tab_selected(view) then
 		if not tab.view:is_cursor_in_header() then
 			tab.view:collapse_directory()
 		end
@@ -822,8 +549,8 @@ function preCursorLeft()
 end
 
 -- Right Arrow
-function preCursorRight()
-	if is_tab_selected() then
+function preCursorRight(view)
+	if is_tab_selected(view) then
 		if not tab.view:is_cursor_in_header() then
 			tab.view:expand_directory()
 		end
@@ -831,29 +558,69 @@ function preCursorRight()
 	end
 end
 
+-- Ctrl + Q
+-- If the target pane is the only one open aside from the file tab,
+-- the file tab will close as well, causing the tab to be closed as well.
+function preQuit(view)
+	if is_tab_selected(view) then
+		tab:close()
+		return false
+	elseif utils.get_panes_quantity(micro.CurTab()) == 2 then 
+		tab:close()
+		return true
+	end
+end
+
 -- Ctrl + Up
 function preCursorStart(view)
-	if is_tab_selected() then
-		tab.view:move_cursor_top()
+	if is_tab_selected(view) then
+		tab.view.Cursor:move_top()
 		return false
 	end
 end
 
 -- Ctrl + Down
 function onCursorEnd(view)
-	if is_tab_selected() then
-		tab.view:highlight_current_line()
+	if is_tab_selected(view) then
+		tab.view.Highlight:current_line()
 	end
 end
 
-
 -- Shift + Up
-function preSelectUp()
-	if is_tab_selected() then
-		tab.view:move_cursor_to_owner()
+function preSelectUp(view)
+	if is_tab_selected(view) then
+		if tab.view.Cursor:get_x() ~= 0 then 
+			-- Select all to the left placing Cursor.X to 0
+			tab.view.Highlight:end_of_line()
+			tab.view:append_cursor_list(tab.view.Cursor:get_y())
+		end
+		tab.view.Highlight:up_line()
+		tab.view:append_cursor_list(tab.view.Cursor:get_y() - 1)
+	end
+end
+
+-- Shift + Down
+function preSelectDown(view)
+	if is_tab_selected(view) then
+		-- tab.view.Highlight:down_line() places X in 0, this checks if it's the first time
+		if tab.view.Cursor:get_x() ~= 0 then 
+			tab.view:append_cursor_list(tab.view.Cursor:get_y())
+		end
+		tab.view.Highlight:down_line()
+		tab.view:append_cursor_list(tab.view.Cursor:get_y())
+		micro.InfoBar():Error(tab.view:get_cursor_list())
 		return false
 	end
 end
+
+-- Shift + Up
+function preSelectUp(view)
+	if is_tab_selected(view) then
+		tab.view.Cursor:move_to_owner(tab.view)
+	return false
+	end
+end
+
 
 ------------------------------------------------------------------
 -- Fail a bunch of useless actions
@@ -869,6 +636,8 @@ function preStartOfText(view)
 end
 
 function preEndOfLine(view)
+	micro.InfoBar():Error('When using "touch" you need to input a file name')
+
 	return false_if_tree(view)
 end
 
@@ -881,16 +650,16 @@ function preMoveLinesUp(view)
 end
 
 function preWordRight(view)
-	return false_if_tree(view)
+	return true
+	--return false_if_tree(view)
 end
 
 function preWordLeft(view)
-	return false_if_tree(view)
+	return true
 end
 
-function preSelectDown(view)
-	return false_if_tree(view)
-end
+
+
 
 function preSelectLeft(view)
 	return false_if_tree(view)
@@ -917,6 +686,7 @@ function preSelectToStartOfText(view)
 end
 
 function preSelectToEndOfLine(view)
+
 	return false_if_tree(view)
 end
 
@@ -943,6 +713,11 @@ end
 function preOutdentLine(view)
 	return false_if_tree(view)
 end
+function preToggleRuler(view)
+
+	return false
+end
+
 
 function preSave(view)
 	return false_if_tree(view)
@@ -969,6 +744,8 @@ function prePastePrimary(view)
 end
 
 function preMouseMultiCursor(view)
+	micro.InfoBar():Error('Wheas')
+
 	return false_if_tree(view)
 end
 
@@ -977,7 +754,30 @@ function preSpawnMultiCursor(view)
 end
 
 function preSelectAll(view)
-	return false_if_tree(view)
+	return true
+end
+
+
+
+--- On click, open at the click's y
+function preMousePress(view, event)
+	if view == tree_view then
+		local x, y = event:Position()
+		-- Fixes the y because softwrap messes with it
+		local new_x, new_y = tree_view:GetMouseClickLocation(x, y)
+		-- Try to open whatever is at the click's y index
+		-- Will go into/back dirs based on what's clicked, nothing gets expanded
+		try_open_at_y(new_y)
+		-- Don't actually allow the mousepress to trigger, so we avoid highlighting stuff
+		return false
+	end
+	return true
+end
+
+function onMousePress(view, event)
+	if micro.CurTab() ~= tree_view:Tab() then
+		micro.InfoBar():Message("Tab was Switched.")
+	end
 end
 
 function init()
@@ -986,6 +786,7 @@ function init()
 	tab = Tab:new(micro.CurPane(), current_dir)
 	-- Let the user disable showing of dotfiles like ".editorconfig" or ".DS_STORE"
 	config.RegisterCommonOption('filemanager', 'showdotfiles', true)
+
 	-- Let the user disable showing files ignored by the VCS (i.e. gitignored)
 	config.RegisterCommonOption('filemanager', 'showignored', true)
 	-- Let the user disable going to parent directory via left arrow key when file selected (not directory)
@@ -1001,7 +802,8 @@ function init()
 	-- Use file icon in status bar
 	micro.SetStatusInfoFn('filemanager.FileIcon')
 
-
+ 
+	--config.TryBindKey("F2", "MousePress", false)
 	-- Open/close the tree view
 
 	config.MakeCommand('tree', Tab.toggle, config.NoComplete)
@@ -1011,6 +813,7 @@ function init()
 	config.MakeCommand('touch', new_file, config.NoComplete)
 	-- Create a new dir
 	config.MakeCommand('mkdir', new_dir, config.NoComplete)
+
 	-- Delete a file/dir, and anything contained in it if it's a dir
 	config.MakeCommand('rm', prompt_delete_at_cursor, config.NoComplete)
 
@@ -1037,17 +840,15 @@ function init()
 
 
 
-
 	-- NOTE: This must be below the syntax load command or coloring won't work
 	-- Just auto-open if the option is enabled
 	-- This will run when the plugin first loads
 	if config.GetGlobalOption('filemanager.openonstart') then
 		-- Check for safety on the off-chance someone's init.lua breaks this
 		if tree_view == nil then
-			open_tree()
-
-
-			micro.InfoBar():Error(utils.get_buffer_end(tree_view))
+			tab:open()
+			tree_view = tab.pane
+			
 
 		--	buf.EventHandler:Insert(, "table.concat(lines)")
 			-- Puts the cursor back in the empty view that initially spawns

@@ -11,6 +11,9 @@ function Icons()
 	return icon.Icons()
 end
 
+local function get_panes_quantity(tab)
+	return #tab.Panes
+end
 -- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
 -- aka this returns a list of gitignored files (but for whatever VCS is found)
 local function get_ignored_files(tar_dir)
@@ -285,4 +288,5 @@ return {
 	is_dotfile = is_dotfile,
 	is_scanlist_empty = is_scanlist_empty,
 	get_buffer_end = get_buffer_end,
+	get_panes_quantity=get_panes_quantity, 
 }
