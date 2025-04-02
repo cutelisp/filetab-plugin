@@ -91,6 +91,12 @@ function View:get_cursor_list ()
     return self.cursor_list
 end
 
+-- This prevents overdownscrolling
+function View:scroll_adjust ()
+    self.pane:ScrollAdjust()
+end
+
+
 
 
 
@@ -162,9 +168,9 @@ function View.Highlight:new(view)
 end
 
 function View.Highlight:current_line()
-    self.view.pane.Cursor:Relocate()
-    self.view.pane:Center()
-    self.view.pane.Cursor:SelectLine()
+   self.view.pane.Cursor:Relocate()
+   self.view.pane:Center()
+   self.view.pane.Cursor:SelectLine()
 end
 
 function View.Highlight:down_line()

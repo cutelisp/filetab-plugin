@@ -617,7 +617,14 @@ end
 function preSelectUp(view)
 	if is_tab_selected(view) then
 		tab.view.Cursor:move_to_owner()
-	return false
+		return false
+	end
+end
+
+-- MouseWheelDown
+function onScrollDown(view)
+	if is_tab_selected(view) then
+		tab.view:scroll_adjust()
 	end
 end
 
@@ -697,6 +704,9 @@ end
 function preSelectToEnd(view)
 	return false_if_tree(view)
 end
+
+
+
 
 function preDeleteWordLeft(view)
 	return false_if_tree(view)
