@@ -163,8 +163,8 @@ function View.Highlight:new(view)
 end
 
 function View.Highlight:current_line()
-   self.view.pane.Cursor:Relocate()
-   self.view.pane:Center()
+   --self.view.pane.Cursor:Relocate()
+   --self.view.pane:Center()
    self.view.pane.Cursor:SelectLine()
 end
 

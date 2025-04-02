@@ -755,7 +755,12 @@ end
 
 function preMouseMultiCursor(view)
 	micro.InfoBar():Error('Wheas')
-
+	function preSelectUp(view)
+		if is_tab_selected(view) then
+			tab.view.Cursor:move_to_owner()
+			return false
+		end
+	end
 	return true --false_if_tree(view)
 end
 
@@ -771,8 +776,10 @@ end
 
 
 
-function onMousePress(bp)
-   -- micro.InfoBar():Message("asd")
+function onMousePress(view)
+	if is_tab_selected(view) then
+		tab.view.Highlight:current_line()
+	end
 end
 
 function init()
