@@ -505,7 +505,7 @@ function onCursorPageUp(view)
 	if is_tab_selected(view) then
 		--tab.view:empty_cursor_list()
 
-		tab.view.Cursor:move_top()
+		tab.view.Cursor:move(1)
 		return false
 	end
 end
@@ -541,7 +541,7 @@ end
 -- Left Arrow
 function preCursorLeft(view)
 	if is_tab_selected(view) then
-		if not tab.view:is_cursor_in_header() then
+		if not tab.view.Cursor:is_in_header() then
 			tab.view:collapse_directory()
 		end
 		return false
@@ -551,7 +551,7 @@ end
 -- Right Arrow
 function preCursorRight(view)
 	if is_tab_selected(view) then
-		if not tab.view:is_cursor_in_header() then
+		if not tab.view.Cursor:is_in_header() then
 			tab.view:expand_directory()
 		end
 		return false
@@ -574,7 +574,7 @@ end
 -- Ctrl + Up
 function preCursorStart(view)
 	if is_tab_selected(view) then
-		tab.view.Cursor:move_top()
+		tab.view.Cursor:move_to_top()
 		return false
 	end
 end
@@ -616,7 +616,7 @@ end
 -- Shift + Up
 function preSelectUp(view)
 	if is_tab_selected(view) then
-		tab.view.Cursor:move_to_owner(tab.view)
+		tab.view.Cursor:move_to_owner()
 	return false
 	end
 end
@@ -746,7 +746,7 @@ end
 function preMouseMultiCursor(view)
 	micro.InfoBar():Error('Wheas')
 
-	return false_if_tree(view)
+	return true --false_if_tree(view)
 end
 
 function preSpawnMultiCursor(view)
@@ -759,25 +759,10 @@ end
 
 
 
---- On click, open at the click's y
-function preMousePress(view, event)
-	if view == tree_view then
-		local x, y = event:Position()
-		-- Fixes the y because softwrap messes with it
-		local new_x, new_y = tree_view:GetMouseClickLocation(x, y)
-		-- Try to open whatever is at the click's y index
-		-- Will go into/back dirs based on what's clicked, nothing gets expanded
-		try_open_at_y(new_y)
-		-- Don't actually allow the mousepress to trigger, so we avoid highlighting stuff
-		return false
-	end
-	return true
-end
 
-function onMousePress(view, event)
-	if micro.CurTab() ~= tree_view:Tab() then
-		micro.InfoBar():Message("Tab was Switched.")
-	end
+
+function onMousePress(bp)
+   -- micro.InfoBar():Message("asd")
 end
 
 function init()

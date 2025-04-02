@@ -28,7 +28,7 @@ function Tab:load(directory)
 	self.current_directory = directory
 	self.entry_list = Entry:get_new_entry_list(directory, nil)
 	self.view:refresh(self.entry_list, self.current_directory)
-	self.view.Cursor:move_top()
+	self.view.Cursor:move_to_top()
 end
 
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
