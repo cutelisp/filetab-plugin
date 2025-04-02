@@ -56,7 +56,7 @@ function Entry:get_new_entry_list(directory, owner)
 
 	-- Append all file entries to directories entries (So they can be correctly sorted)
 	utils.get_appended_tables(entries_directories, entries_files)
-	return Entry_list:new(directory, entries_directories)
+	return Entry_list:new(entries_directories)
 end
 
 -- Builds and returns the string representation of the entry

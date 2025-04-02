@@ -1,13 +1,8 @@
-local config = import('micro/config')
-local micro  = import('micro')
-local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local filepath = import('path/filepath')
-
 
 local Entry_list = {}
 Entry_list.__index = Entry_list
 
-function Entry_list:new(directory, list)
+function Entry_list:new(list)
     local instance = setmetatable({}, Entry_list)
     instance.list = list
 	instance.content = nil

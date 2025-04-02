@@ -3,7 +3,6 @@ local micro = import('micro')
 local buffer = import('micro/buffer')
 local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
 local View = dofile(config.ConfigDir .. '/plug/filemanager/view.lua')
-local Entry_list = dofile(config.ConfigDir .. '/plug/filemanager/entry_list.lua')
 local Action = dofile(config.ConfigDir .. '/plug/filemanager/action.lua')
 
 

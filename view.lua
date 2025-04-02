@@ -1,9 +1,4 @@
-local config = import('micro/config')
-local micro = import('micro')
 local buffer = import('micro/buffer')
-local filepath = import('path/filepath')
-local Entry_list = dofile(config.ConfigDir .. '/plug/filemanager/entry_list.lua')
-
 
 local View = {}
 View.__index = View
