@@ -6,12 +6,12 @@ local Virtual = dofile(config.ConfigDir .. '/plug/filemanager/virtualcursor.lua'
 local View = {}
 View.__index = View
 
-function View:new(pane)
+function View:new(bp)
 	local instance = setmetatable({}, View)
-	instance.pane = pane
+	instance.bp = bp
 	instance.entry_list = nil
 	instance.directory = nil
-	instance.virtual = Virtual:new(pane)
+	instance.virtual = Virtual:new(bp)
 	return instance
 end
 
@@ -27,23 +27,23 @@ function View:refresh(entry_list, directory)
 	self.virtual:refresh()
 	self.virtual:rr()
 
-	self.pane:Tab():Resize() -- Resizes all views after messing with ours 	-- todo idk wts this
+	self.bp:Tab():Resize() -- Resizes all views after messing with ours 	-- todo idk wts this
 end
 
 -- Print static header,directory, an ASCII separator, The ".." and use a newline if there are things in the current directory
 function View:print_header() --todo
-	self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 0), self.directory .. '\n')
-	self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 1), string.rep('─', self.pane:GetView().Width) .. '\n') -- TODO this \n is probably wrong
-	self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 2), (self.entry_list:size() > 0 and '..\n' or '..'))
+	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 0), self.directory .. '\n')
+	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 1), string.rep('─', self.bp:GetView().Width) .. '\n') -- TODO this \n is probably wrong
+	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 2), (self.entry_list:size() > 0 and '..\n' or '..'))
 end
 
 function View:print_entries()
-	self.pane.Buf.EventHandler:Insert(buffer.Loc(0, 3), table.concat(self.entry_list:get_content()))
+	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 3), table.concat(self.entry_list:get_content()))
 end
 
 -- Delete everything in the view/buffer
 function View:clear()
-	self.pane.Buf.EventHandler:Remove(self.pane.Buf:Start(), self.pane.Buf:End())
+	self.bp.Buf.EventHandler:Remove(self.bp.Buf:Start(), self.bp.Buf:End())
 end
 
 function View:collapse_directory(line_number, entry)
@@ -99,10 +99,10 @@ View.toggle_directory = execute_multiple_times(View.toggle_directory)
 View.collapse_directory = execute_multiple_times(View.collapse_directory)
 
 function View:move_cursor_to_owner()
-	current_cursor_y = self.virtual.cursor:get_loc().Y
-	owner = self:get_entry_at_line(current_cursor_y).owner
+	local current_cursor_y = self.virtual.cursor:get_loc().Y
+	local owner = self:get_entry_at_line(current_cursor_y).owner
 	if owner then
-		owner_line = self:get_line_at_entry(owner)
+		local owner_line = self:get_line_at_entry(owner)
 		self.virtual:move_cursor_and_select_line(owner_line)
 	end
 end
