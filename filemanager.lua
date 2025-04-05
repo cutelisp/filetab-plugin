@@ -14,6 +14,7 @@ local Tab = dofile(config.ConfigDir .. '/plug/filemanager/tab.lua')
 local Action = dofile(config.ConfigDir .. '/plug/filemanager/action.lua')
 
 
+local Config = dofile(config.ConfigDir .. '/plug/filemanager/config.lua')
 
 function Icons()
 	return icon.Icons()
@@ -26,7 +27,6 @@ end
 function FileIcon(buf)
 	return icon.GetIcon(buf.Path)
 end
-
 
 local tab
 
@@ -55,10 +55,10 @@ function prompt_delete_at_cursor()
 
 	micro.InfoBar():YNPrompt(
 		'Do you want to delete the '
-			.. (tab.entry_list[y].icon == icons['dir'] and 'dir' or 'file')
-			.. ' "'
-			.. tab.entry_list[y].abs_path
-			.. '"? ',
+		.. (tab.entry_list[y].icon == icons['dir'] and 'dir' or 'file')
+		.. ' "'
+		.. tab.entry_list[y].abs_path
+		.. '"? ',
 		function(yes, canceled)
 			if yes and not canceled then
 				-- Use Go's os.Remove to delete the file
@@ -79,7 +79,6 @@ function prompt_delete_at_cursor()
 		end
 	)
 end
-
 
 -- Prompts for a new name, then renames the file/dir at the cursor's position
 -- Not local so Micro can use it
@@ -289,9 +288,6 @@ function new_dir(_, args)
 	create_filedir(dir_name, true)
 end
 
-
-
-
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- Functions exposed specifically for the user to bind
 -- Some are used in callbacks as well
@@ -331,9 +327,6 @@ function goto_next_dir()
 		end
 	end
 end
-
-
-
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- Shorthand functions for actions to reduce repeat code
@@ -392,15 +385,6 @@ function preQuitAll(_)
 	--tab:close()
 end
 
-
-
-
-
-
-
-
-
-
 function onNextSplit(view)
 	selectline_if_tree(view)
 end
@@ -408,17 +392,6 @@ end
 function onPreviousSplit(view)
 	selectline_if_tree(view)
 end
-
-
-
-
-
-
-
-
-
-
-
 
 -- CtrlF
 function preFind(view)
@@ -459,14 +432,8 @@ function onCommandMode(_)
 	end
 end
 
-
-
-
-
-
-
 local function is_tab_selected(view)
-	return view == tab.pane 
+	return view == tab.pane
 end
 
 -- Tab
@@ -491,8 +458,8 @@ end
 -- Enter
 function preInsertNewline(view)
 	if is_tab_selected(view) then
-		if tab.view.Cursor:get_y() == 2 then
-		  	tab.action:load_back_directory(tab.current_directory)	
+		if tab.view.virtual.cursor:get_loc().Y == Config.previousDirectoryLine then
+			tab.action:load_back_directory(tab.current_directory)
 		else
 			tab.view:toggle_directory()
 		end
@@ -505,7 +472,6 @@ function onCursorPageUp(view)
 	if is_tab_selected(view) then
 		--tab.view:empty_cursor_list()
 
-		tab.view.Cursor:move(1)
 		return false
 	end
 end
@@ -520,30 +486,28 @@ end
 -- Up Arrow
 function preCursorUp(view)
 	-- Disallow selecting past the ".." in the tab
-	if is_tab_selected(view) and tab.view.Cursor:get_y() == 2 then
+	if is_tab_selected(view) and tab.view.virtual.cursor:get_loc().Y == 2 then
 		return false
 	end
 end
 
 function onCursorUp(view)
 	if is_tab_selected(view) then
-		tab.view.Highlight:current_line()
+		tab.view.virtual:select_line_on_cursor()
 	end
 end
 
 -- Down Arrow
 function onCursorDown(view)
 	if is_tab_selected(view) then
-		tab.view.Highlight:current_line()
+		tab.view.virtual:select_line_on_cursor()
 	end
 end
 
 -- Left Arrow
 function preCursorLeft(view)
 	if is_tab_selected(view) then
-		if not tab.view.Cursor:is_in_header() then
-			tab.view:collapse_directory()
-		end
+		tab.view:collapse_directory()
 		return false
 	end
 end
@@ -551,9 +515,7 @@ end
 -- Right Arrow
 function preCursorRight(view)
 	if is_tab_selected(view) then
-		if not tab.view.Cursor:is_in_header() then
-			tab.view:expand_directory()
-		end
+		tab.view:expand_directory()
 		return false
 	end
 end
@@ -565,7 +527,7 @@ function preQuit(view)
 	if is_tab_selected(view) then
 		tab:close()
 		return false
-	elseif utils.get_panes_quantity(micro.CurTab()) == 2 then 
+	elseif utils.get_panes_quantity(micro.CurTab()) == 2 then
 		tab:close()
 		return true
 	end
@@ -574,23 +536,33 @@ end
 -- Ctrl + Up
 function preCursorStart(view)
 	if is_tab_selected(view) then
-		tab.view.Cursor:move_to_top()
+		tab.view:move_cursor_to_owner()
+		--tab.view.Cursor:move_to_top()
 		return false
 	end
 end
 
 -- Ctrl + Down
-function onCursorEnd(view)
-	if is_tab_selected(view) then
-		tab.view.Highlight:current_line()
-	end
+function preCursorEnd(view)
+	--as = view.Cursor.Loc.Y
+	tab.view.virtual:asd()
+
+	--view:SpawnMultiCursorUpN(3)
+
+	--view:SpawnMultiCursorUpN(1)
+
+
+	--view.Cursor.Loc.Y  = as
+	return false
+	--if is_tab_selected(view) then
+	--	tab.view.Highlight:current_line()
+	--	end
 end
 
 -- Shift + Up
-function preSelectUp(view)
+function preSelectUp(view) -- bug the first line is nor selected entirly
 	if is_tab_selected(view) then
-		if tab.view.Cursor:get_x() ~= 0 then 
-			-- Select all to the left placing Cursor.X to 0
+		if tab.view.Cursor:get_x() ~= 0 then
 			tab.view.Highlight:end_of_line()
 			tab.view:append_cursor_list(tab.view.Cursor:get_y())
 		end
@@ -601,33 +573,36 @@ end
 
 -- Shift + Down
 function preSelectDown(view)
-	if is_tab_selected(view) then
-		-- tab.view.Highlight:down_line() places X in 0, this checks if it's the first time
-		if tab.view.Cursor:get_x() ~= 0 then 
-			tab.view:append_cursor_list(tab.view.Cursor:get_y())
-		end
+	if tab.view.Cursor:get_x() ~= 0 then
+		tab.view.Highlight:current_line_undo()
 		tab.view.Highlight:down_line()
-		tab.view:append_cursor_list(tab.view.Cursor:get_y())
-		micro.InfoBar():Error(tab.view:get_cursor_list())
-		return false
+		tab.view:append_cursor_list(tab.view.Cursor:get_y() - 1)
 	end
+	tab.view:append_cursor_list(tab.view.Cursor:get_y())
+	micro.InfoBar():Error("tab.view.Cursor:get_y()")
 end
 
--- Shift + Up
-function preSelectUp(view)
-	if is_tab_selected(view) then
-		tab.view.Cursor:move_to_owner()
-		return false
-	end
-end
-
--- MouseWheelDown
+-- MouseWheel Down
 function onScrollDown(view)
 	if is_tab_selected(view) then
-		tab.view:scroll_adjust()
+		-- Prevent overdownscroll (seems a micro bug)
+		view:ScrollAdjust()
 	end
 end
 
+-- Mouse Left Click
+function onMousePress(view)
+	tab.view.virtual:click_event()
+end
+
+-- Mouse Left Click
+function onMouseRelease(bp)
+	--tab.view.virtual:move_cursor(3)
+end
+
+function onMouseDrag(view)
+	tab.view.virtual:drag_event()
+end
 
 ------------------------------------------------------------------
 -- Fail a bunch of useless actions
@@ -635,6 +610,15 @@ end
 ------------------------------------------------------------------
 
 function preStartOfLine(view)
+	cursor_line_number = tab.view.Cursor:get_y()
+	if cursor_line_number == line_number then
+		micro.InfoBar():Error("")
+	elseif line_number < cursor_line_number then
+		micro.InfoBar():Error("")
+		tab.view.Highlight:to_end_of_line()
+	else
+		micro.InfoBar():Error("")
+	end
 	return false_if_tree(view)
 end
 
@@ -665,9 +649,6 @@ function preWordLeft(view)
 	return true
 end
 
-
-
-
 function preSelectLeft(view)
 	return false_if_tree(view)
 end
@@ -693,7 +674,6 @@ function preSelectToStartOfText(view)
 end
 
 function preSelectToEndOfLine(view)
-
 	return false_if_tree(view)
 end
 
@@ -704,9 +684,6 @@ end
 function preSelectToEnd(view)
 	return false_if_tree(view)
 end
-
-
-
 
 function preDeleteWordLeft(view)
 	return false_if_tree(view)
@@ -723,11 +700,10 @@ end
 function preOutdentLine(view)
 	return false_if_tree(view)
 end
-function preToggleRuler(view)
 
+function preToggleRuler(view)
 	return false
 end
-
 
 function preSave(view)
 	return false_if_tree(view)
@@ -754,36 +730,24 @@ function prePastePrimary(view)
 end
 
 function preMouseMultiCursor(view)
-	micro.InfoBar():Error('Wheas')
-	function preSelectUp(view)
-		if is_tab_selected(view) then
-			tab.view.Cursor:move_to_owner()
-			return false
-		end
-	end
+	return true --false_if_tree(view)
+end
+
+function onMouseMultiCursor(view)
+	tab.view.virtual.cursor:select_all()
+	--view:RemoveMultiCursor()
 	return true --false_if_tree(view)
 end
 
 function preSpawnMultiCursor(view)
-	return false_if_tree(view)
+	return false
 end
 
 function preSelectAll(view)
 	return true
 end
 
-
-
-
-
-function onMousePress(view)
-	if is_tab_selected(view) then
-		tab.view.Highlight:current_line()
-	end
-end
-
 function init()
-
 	current_dir = os.Getwd()
 	tab = Tab:new(micro.CurPane(), current_dir)
 	-- Let the user disable showing of dotfiles like ".editorconfig" or ".DS_STORE"
@@ -804,7 +768,7 @@ function init()
 	-- Use file icon in status bar
 	micro.SetStatusInfoFn('filemanager.FileIcon')
 
- 
+
 	--config.TryBindKey("F2", "MousePress", false)
 	-- Open/close the tree view
 
@@ -850,9 +814,9 @@ function init()
 		if tree_view == nil then
 			tab:open()
 			tree_view = tab.pane
-			
 
-		--	buf.EventHandler:Insert(, "table.concat(lines)")
+
+			--	buf.EventHandler:Insert(, "table.concat(lines)")
 			-- Puts the cursor back in the empty view that initially spawns
 			-- This is so the cursor isn't sitting in the tree view at startup
 			--micro.CurPane():NextSplit()
