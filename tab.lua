@@ -10,15 +10,14 @@ local Config = dofile(config.ConfigDir .. '/plug/filemanager/config.lua')
 local Tab = {}
 Tab.__index = Tab
 
-function Tab:new(pane, current_directory)
+function Tab:new(bp, current_directory)
 	local instance = setmetatable({}, Tab)
 	instance.is_selected = true
-	instance.pane = pane
-	instance.min_width = 30
+	instance.bp = bp
 	instance.current_directory = current_directory
 	instance.is_open = false
 	instance.entry_list = {}
-	instance.view = View:new(pane)
+	instance.view = View:new(bp)
 	instance.action = Action:new(instance)
 	return instance
 end
@@ -33,32 +32,25 @@ end
 
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
 function Tab:setup_settings()
-	-- Set the width of tree_view to 30% & lock it
-	self:resize(self.min_width)
-	-- tree_view.Buf.Type = buffer.BTLog
-	-- Set the type to unsavable
-	self.pane.Buf.Type.Scratch = true
-	self.pane.Buf.Type.Readonly = true
-	-- Softwrap long strings (the file/dir paths)
-	self.pane.Buf:SetOptionNative('softwrap', false)
-	--  self.pane.Buf:SetOptionNative('scrollbar', true)
-	-- No line numbering
-	self.pane.Buf:SetOptionNative('ruler', false)
-	-- Is this needed with new non-savable settings from being "vtLog"?
-	self.pane.Buf:SetOptionNative('autosave', false)
-	-- Don't show the statusline to differentiate the view from normal views
-	self.pane.Buf:SetOptionNative('statusformatr', '')
-	self.pane.Buf:SetOptionNative('statusformatl', 'filetab')
-	self.pane.Buf:SetOptionNative('scrollbar', false)
+	self:resize(Config.tab.minWith)
+	self.bp.Buf:SetOptionNative('scrollbar', Config.scrollBar)
+	self.bp.Buf:SetOptionNative('ruler', false)
+	self.bp.Buf.Type.Readonly = true
+	self.bp.Buf.Type.Scratch = true
+	self.bp.Buf:SetOptionNative('softwrap', false)
+	self.bp.Buf:SetOptionNative('statusformatr', '')
+	self.bp.Buf:SetOptionNative('statusformatl', 'filetab')
+	--	self.bp.Buf:SetOptionNative('statusline', false)
+	--	self.bp.Buf.Type.Syntax = true
 end
 
 -- Set the width of tab to num
 function Tab:resize(num)
-	self.pane:ResizePane(num)
+	self.bp:ResizePane(num)
 end
 
 function Tab:close()
-	self.pane:Quit()
+	self.bp:Quit()
 	self.is_open = false
 end
 
@@ -79,7 +71,7 @@ function Tab:toggle()
 end
 
 function Tab:get_is_selected()
-	return micro.CurPane() == self.pane
+	return micro.CurPane() == self.bp
 end
 
 return Tab
