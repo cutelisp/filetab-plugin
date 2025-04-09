@@ -11,6 +11,14 @@ function Icons()
 	return icon.Icons()
 end
 
+function get_dot_position(filename)
+    local pos = string.find(filename, "%.", 2)
+    if pos then
+        return #filename - pos + 1
+    else
+        return nil
+    end
+end
 local function get_panes_quantity(tab)
 	return #tab.Panes
 end
@@ -271,6 +279,38 @@ local function get_files_names(directory, include_dotfiles, include_ignored_file
 	end
 end
 
+
+
+
+-- This function is designed to identify the position of the first character 
+-- in 'entry.content' that is neither a space nor an icon. This is necessary 
+-- because 'entry.content' can have an offset due to leading spaces or icons. 
+local function first_char_loc(str)
+    for i = 1, #str do
+        local char = str:sub(i, i)
+        if char ~= " " then
+	        -- When this condition is true it means the icon was found 
+	        -- Adding 2 to the position accounts for the space between the icon and the 
+	        -- file name.
+            return i + 2
+        end
+    end
+    return nil
+end
+
+-- Find the position of the last dot 
+local function get_dot_location(str)
+	local position = string.find(str, "%.[^%.]*$")
+    return position
+end
+
+local function get_content(str)
+	-- Correct the starting position to account the icon which is a multi-byte character
+    local first_char_location = first_char_loc(str) + 3
+    return string.sub(str, first_char_location)
+end
+
+
 return {
 	get_ignored_files = get_ignored_files,
 	get_tree_min_with = get_tree_min_with,
@@ -288,5 +328,9 @@ return {
 	is_dotfile = is_dotfile,
 	is_scanlist_empty = is_scanlist_empty,
 	get_buffer_end = get_buffer_end,
-	get_panes_quantity=get_panes_quantity, 
+	get_panes_quantity=get_panes_quantity,
+	get_dot_position = get_dot_position,
+	first_char_loc = first_char_loc,
+	get_dot_location = get_dot_location, 
+	get_content = get_content
 }
