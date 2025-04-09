@@ -1,10 +1,10 @@
 local config = import('micro/config')
 local micro = import('micro')
+local filepath = import('path/filepath')
 local buffer = import('micro/buffer')
 local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
 local View = dofile(config.ConfigDir .. '/plug/filemanager/view.lua')
-local Action = dofile(config.ConfigDir .. '/plug/filemanager/action.lua')
-local Config = dofile(config.ConfigDir .. '/plug/filemanager/config.lua')
+local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
 
 
 local Tab = {}
@@ -18,7 +18,6 @@ function Tab:new(bp, current_directory)
 	instance.is_open = false
 	instance.entry_list = {}
 	instance.view = View:new(bp)
-	instance.action = Action:new(instance)
 	return instance
 end
 
@@ -27,13 +26,23 @@ function Tab:load(directory)
 	self.current_directory = directory
 	self.entry_list = Entry:get_new_entry_list(directory, nil)
 	self.view:refresh(self.entry_list, self.current_directory)
-	self.view.virtual:move_cursor_and_select_line(Config.defaultLineOnOpen)
+	self.view.virtual:move_cursor_and_select_line(Settings.Const.defaultLineOnOpen)
+end
+
+-- (Tries to) go load one "step" from the current directory
+function Tab:load_back_directory()
+    local current_dir = self.current_directory
+	local one_back_directory = filepath.Dir(current_dir)
+	-- Try opening, assuming they aren't at "root", by checking if it matches last dir
+	if one_back_directory ~= current_dir then
+	    self:load(one_back_directory)
+	end
 end
 
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
 function Tab:setup_settings()
-	self:resize(Config.tab.minWith)
-	self.bp.Buf:SetOptionNative('scrollbar', Config.scrollBar)
+	self:resize(Settings.Const.minWidth)
+	self.bp.Buf:SetOptionNative('scrollbar', Settings.getOption("scrollbar"))
 	self.bp.Buf:SetOptionNative('ruler', false)
 	self.bp.Buf.Type.Readonly = true
 	self.bp.Buf.Type.Scratch = true
