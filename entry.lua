@@ -19,7 +19,8 @@ function Entry:new(file_name, abs_path, owner)
     instance.icon = (is_dir and icons['dir'] or icon_utils.GetIcon(file_name))
     instance.is_open = false 
     instance.entry_list = nil
-    instance.owner = owner or nil 
+    instance.owner = owner or nil
+    instance.content = nil
     return instance
 end
 
@@ -62,11 +63,14 @@ end
 -- Builds and returns the string representation of the entry
 -- The string is made up of an icon, the file name, and a slash if it's a directory
 function Entry:get_content(offset)
-    local content = self.icon .. ' ' .. self.file_name .. (self.is_dir and '/' or '')
-    if offset then
-        content = string.rep(' ', 2 * offset) .. content    
-    end
-    return content
+	if not self.content or true then
+	    local content = self.icon .. ' ' .. self.file_name .. (self.is_dir and '' or '')--todo
+	    if offset then
+	        content = string.rep(' ', 2 * offset) .. content
+	    end
+		self.content = content
+	end
+ 	return self.content
 end
 
 function Entry:set_is_open(status)
@@ -81,6 +85,12 @@ end
 
 function Entry:get_entry_list()
     return self.entry_list
+end
+
+function Entry:set_file_name(file_name)
+	-- Since update, the content is not up-to-date
+	self.content = nil
+	self.file_name = file_name
 end
 
 return Entry
