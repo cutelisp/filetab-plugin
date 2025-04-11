@@ -40,15 +40,6 @@ local function toggle_filetab()
 	end
 end
 
-
-
-
-local function is_action_happening(ft)
-	return ft.view:is_rename_at_cursor_happening()
-end
-
-
-
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 -- All the events for certain Micro keys go below here
 -- Other than things we flat-out fail
@@ -58,7 +49,7 @@ end
 function preCursorUp(bp)
 	local ft = get_filetab_by_bp(bp)
 	if ft then
-		if is_action_happening(ft) or ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+		if ft.view:is_action_happening() or ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
 			return false
 		end
 	end
@@ -75,7 +66,7 @@ end
 function preCursorDown(bp)
 	local ft = get_filetab_by_bp(bp)
 	if ft then
-		if is_action_happening(ft) then
+		if ft.view:is_action_happening() then
 			return false
 		end
 	end
@@ -153,7 +144,7 @@ end
 function preCursorPageUp(bp)
 	local ft = get_filetab_by_bp(bp)
 	if ft then
-		if is_action_happening(ft) then
+		if ft.view:is_action_happening() then
 			return false
 		else
 			ft.view.virtual:move_cursor_and_select_line(Config.previousDirectoryLine)
@@ -166,7 +157,7 @@ end
 function preCursorPageDown(bp)
 	local ft = get_filetab_by_bp(bp)
 	if ft then
-		if is_action_happening(ft) then
+		if ft.view:is_action_happening() then
 			return false
 		end
 	end
@@ -223,7 +214,7 @@ end
 function preCursorStart(bp)
 	local ft = get_filetab_by_bp(bp)
 	if ft then
-		if is_action_happening(ft) then
+		if ft.view:is_action_happening() then
 			return false
 		else
 			ft.view:move_cursor_to_owner()
@@ -236,7 +227,7 @@ end
 function preCursorEnd(bp)
 	local ft = get_filetab_by_bp(bp)
 	if ft then
-		if is_action_happening(ft) then
+		if ft.view:is_action_happening() then
 			return false
 		else
 			ft.view:move_cursor_to_next_dir_outside()

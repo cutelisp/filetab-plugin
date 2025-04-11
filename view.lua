@@ -148,8 +148,12 @@ function View:rename_at_cursor()
 	end
 end
 
+function View:is_action_happening()
+	return self:is_rename_at_cursor_happening()
+end
+
 function View:is_rename_at_cursor_happening()
-	return self.rename_at_cursor_line_num or true and false
+	return self.rename_at_cursor_line_num and true or false
 end
 
 -- The entries are nested within entry_lists, so the entry corresponding to a given line number
