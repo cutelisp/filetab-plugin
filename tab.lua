@@ -31,11 +31,11 @@ end
 
 -- (Tries to) go load one "step" from the current directory
 function Tab:load_back_directory()
-    local current_dir = self.current_directory
+	local current_dir = self.current_directory
 	local one_back_directory = filepath.Dir(current_dir)
 	-- Try opening, assuming they aren't at "root", by checking if it matches last dir
 	if one_back_directory ~= current_dir then
-	    self:load(one_back_directory)
+		self:load(one_back_directory)
 	end
 end
 
@@ -65,7 +65,7 @@ end
 
 function Tab:open()
 	-- Open a new Vsplit (on the very left)
-	micro.CurPane():VSplitIndex(buffer.NewBuffer('', ''), true)
+	self.bp:VSplitIndex(buffer.NewBuffer('', ''), true)
 	self.is_open = true
 	self:setup_settings()
 	self:load(self.current_directory)
@@ -77,6 +77,10 @@ function Tab:toggle()
 	else
 		self:open()
 	end
+end
+
+function Tab:get_tab()
+	return self.bp:Tab()
 end
 
 function Tab:get_is_selected()
