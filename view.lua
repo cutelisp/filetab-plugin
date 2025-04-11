@@ -1,7 +1,11 @@
 local buffer = import('micro/buffer')
 local micro = import('micro')
 local config = import('micro/config')
-local Virtual = dofile(config.ConfigDir .. '/plug/filemanager/virtualcursor.lua')
+local Virtual = dofile(config.ConfigDir .. '/plug/filemanager/virtual.lua')
+local filepath = import('path/filepath')
+local golib_os = import('os')
+local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
+
 
 local View = {}
 View.__index = View
@@ -12,6 +16,8 @@ function View:new(bp)
 	instance.entry_list = nil
 	instance.directory = nil
 	instance.virtual = Virtual:new(bp)
+	instance.rename_at_cursor_line_num = nil
+	instance.rename_at_cursor_line_num = nil
 	return instance
 end
 
@@ -23,10 +29,8 @@ function View:refresh(entry_list, directory)
 	self:clear()
 	self:print_header()
 	self:print_entries()
-	micro.InfoBar():Error(self.virtual.selected_lines)
 	self.virtual:refresh()
-	self.virtual:rr()
-
+	self.virtual:move_cursor_and_select_line(cursor_y)
 	self.bp:Tab():Resize() -- Resizes all views after messing with ours 	-- todo idk wts this
 end
 
@@ -34,7 +38,7 @@ end
 function View:print_header() --todo
 	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 0), self.directory .. '\n')
 	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 1), string.rep('─', self.bp:GetView().Width) .. '\n') -- TODO this \n is probably wrong
-	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 2), (self.entry_list:size() > 0 and '..\n' or '..'))
+	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 2), (self.entry_list:len() > 0 and '..\n' or '..'))
 end
 
 function View:print_entries()
@@ -99,12 +103,53 @@ View.toggle_directory = execute_multiple_times(View.toggle_directory)
 View.collapse_directory = execute_multiple_times(View.collapse_directory)
 
 function View:move_cursor_to_owner()
-	local current_cursor_y = self.virtual.cursor:get_loc().Y
-	local owner = self:get_entry_at_line(current_cursor_y).owner
+	local current_cursor_line = self.virtual.cursor:get_loc_y()
+	local owner = self:get_entry_at_line(current_cursor_line).owner
 	if owner then
-		local owner_line = self:get_line_at_entry(owner)
-		self.virtual:move_cursor_and_select_line(owner_line)
+		self:move_cursor_to_entry(owner)
 	end
+end
+
+function View:move_cursor_to_entry(entry)
+	local entry_line = self:get_line_at_entry(entry)
+	self.virtual:move_cursor_and_select_line(entry_line)
+end
+
+function View:move_cursor_to_next_dir_outside()--todo has bug
+	local current_cursor_line = self.virtual.cursor:get_loc_y()
+	local owner = self:get_entry_at_line(current_cursor_line).owner
+
+	if owner then
+		local entry_list_len = owner:get_entry_list():len()
+		self.virtual:move_cursor_and_select_line(current_cursor_line + entry_list_len + 1)
+	end
+end
+
+function View:pre_rename_at_cursor()
+	local current_cursor_line = self.virtual.cursor:get_line_num()
+	self.rename_at_cursor_line_num = current_cursor_line
+	self.virtual.cursor:select_file_name_no_extension()
+	self:set_read_only(false)
+end
+
+function View:rename_at_cursor()
+	local entry = self:get_entry_at_line(self.rename_at_cursor_line_num)
+	self.rename_at_cursor_line_num = nil
+	local old_path = entry.abs_path
+	local line_text = utils.get_content(self.virtual.cursor:get_line_text())
+	local new_path = utils.dirname_and_join(old_path, line_text)
+
+	entry:set_file_name(line_text)
+	local log = golib_os.Rename(old_path, new_path)
+
+	-- Output the log, if any, of the rename
+	if "log" ~= nil then
+		micro.Log('Rename log: ', log)
+	end
+end
+
+function View:is_rename_at_cursor_happening()
+	return self.rename_at_cursor_line_num or true and false
 end
 
 -- The entries are nested within entry_lists, so the entry corresponding to a given line number
@@ -114,6 +159,10 @@ end
 function View:get_entry_at_line(line_number)
 	local all_entries = self.entry_list:get_all_nested_entries()
 	return all_entries[line_number - 2]
+end
+
+function View:get_read_only(value)
+	return self.bp.Buf.Type.Readonly
 end
 
 function View:get_line_at_entry(entry)
@@ -133,6 +182,10 @@ end
 
 function View:set_directory(directory)
 	self.directory = directory
+end
+
+function View:set_read_only(value)
+	self.bp.Buf.Type.Readonly = value
 end
 
 return View
