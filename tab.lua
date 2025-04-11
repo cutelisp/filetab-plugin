@@ -42,7 +42,7 @@ end
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
 function Tab:setup_settings()
 	self:resize(Settings.Const.minWidth)
-	self.bp.Buf:SetOptionNative('scrollbar', Settings.getOption("scrollbar"))
+	self.bp.Buf:SetOptionNative('scrollbar', Settings.get_option("scrollbar"))
 	self.bp.Buf:SetOptionNative('ruler', false)
 	self.bp.Buf.Type.Readonly = true
 	self.bp.Buf.Type.Scratch = true
