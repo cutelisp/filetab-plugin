@@ -2,27 +2,49 @@ VERSION = "0.0.1"
 
 local micro = import('micro')
 local config = import('micro/config')
-local shell = import('micro/shell')
-local buffer = import('micro/buffer')
 local os = import('os')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
 local Tab = dofile(config.ConfigDir .. '/plug/filemanager/tab.lua')
 local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
 
 
+local filetab_map = {}
 
-local tree_view
+local function get_filetab_by_bp(bp)
+	for _, ft in ipairs(filetab_map) do
+        if ft.bp == bp then
+            return ft
+        end
+    end
+    return nil
+end
 
-local function get_tab(view)
-	if tab.bp == view then
-		return tab
+local function get_filetab_by_tab(tab)
+    for _, ft in ipairs(filetab_map) do
+        if ft.bp:Tab() == tab then
+            return ft
+        end
+    end
+    return nil
+end
+
+local function toggle_filetab()
+	local ft = get_filetab_by_tab(micro.CurTab())
+
+	if not ft then
+		ft = Tab:new(micro.CurPane(), os.Getwd())
+		table.insert(filetab_map, ft)
+		ft:toggle()
 	else
-		return nil
+		ft:toggle()
 	end
 end
 
-local function is_action_happening(tabb)
-	return tabb.view:is_rename_at_cursor_happening()
+
+
+
+local function is_action_happening(ft)
+	return ft.view:is_rename_at_cursor_happening()
 end
 
 
@@ -33,92 +55,92 @@ end
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- Up Arrow
-function preCursorUp(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if is_action_happening(tabb) or tabb.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+function preCursorUp(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if is_action_happening(ft) or ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
 			return false
 		end
 	end
 end
 
-function onCursorUp(view)
-	local tabb = get_tab(view)
-	if tabb then
-		tab.view.virtual:select_line_on_cursor()
+function onCursorUp(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		ft.view.virtual:select_line_on_cursor()
 	end
 end
 
 -- Down Arrow
-function preCursorDown(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if is_action_happening(tabb) then
+function preCursorDown(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if is_action_happening(ft) then
 			return false
 		end
 	end
 end
 
-function onCursorDown(view)
-	local tabb = get_tab(view)
-	if tabb then
-		tab.view.virtual:select_line_on_cursor()
+function onCursorDown(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		ft.view.virtual:select_line_on_cursor()
 	end
 end
 
 -- Left Arrow
-function preCursorLeft(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if tabb.view:is_rename_at_cursor_happening() then
-			if tabb.view.virtual.cursor:get_can_move_left() then
+function preCursorLeft(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if ft.view:is_rename_at_cursor_happening() then
+			if ft.view.virtual.cursor:get_can_move_left() then
 				return true
 			end
 		else
-			tab.view:collapse_directory()
+			ft.view:collapse_directory()
 		end
 		return false
 	end
 end
 
 -- Right Arrow
-function preCursorRight(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if tabb.view:is_rename_at_cursor_happening() then
-			if tabb.view.virtual.cursor:get_can_move_right() then
+function preCursorRight(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if ft.view:is_rename_at_cursor_happening() then
+			if ft.view.virtual.cursor:get_can_move_right() then
 				return true
 			end
 		else
-			tab.view:expand_directory()
+			ft.view:expand_directory()
 		end
 		return false
 	end
 end
 
 -- Enter
-function preInsertNewline(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if tabb.view:is_rename_at_cursor_happening() then
-			tabb.view:rename_at_cursor()
-			tabb.view:set_read_only(true)
-			tabb.view:refresh()
-		elseif tabb.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
-			tabb:load_back_directory()
+function preInsertNewline(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if ft.view:is_rename_at_cursor_happening() then
+			ft.view:rename_at_cursor()
+			ft.view:set_read_only(true)
+			ft.view:refresh()
+		elseif ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+			ft:load_back_directory()
 		else
-			tabb.view:toggle_directory()
+			ft.view:toggle_directory()
 		end
 		return false
 	end
 end
 
 -- Backspace
-function preBackspace(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if tabb.view:is_rename_at_cursor_happening() then
-			if tabb.view.virtual.cursor:get_can_move_left() then
+function preBackspace(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if ft.view:is_rename_at_cursor_happening() then
+			if ft.view.virtual.cursor:get_can_move_left() then
 				return true
 			end
 		end
@@ -128,41 +150,41 @@ function preBackspace(view)
 end
 
 -- PageUp
-function preCursorPageUp(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if is_action_happening(tabb) then
+function preCursorPageUp(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if is_action_happening(ft) then
 			return false
 		else
-			tab.view.virtual:move_cursor_and_select_line(Config.previousDirectoryLine)
+			ft.view.virtual:move_cursor_and_select_line(Config.previousDirectoryLine)
 			return false
 		end
 	end
 end
 
 -- PageDown
-function preCursorPageDown(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if is_action_happening(tabb) then
+function preCursorPageDown(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if is_action_happening(ft) then
 			return false
 		end
 	end
 end
 
-function onCursorPageDown(view)
-	local tabb = get_tab(view)
-	if tabb then
-		tab.view.virtual:select_line_on_cursor()
+function onCursorPageDown(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		ft.view.virtual:select_line_on_cursor()
 	end
 end
 
 -- F2
-function preSave(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if not tabb.view:is_rename_at_cursor_happening() then
-			tabb.view:pre_rename_at_cursor()
+function preSave(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if not ft.view:is_rename_at_cursor_happening() then
+			ft.view:pre_rename_at_cursor()
 		end
 	end
 	return false
@@ -171,26 +193,26 @@ end
 -- Ctrl + Q
 -- If the target pane is the only one open aside from the file tab,
 -- the file tab will close as well, causing the tab to be closed as well.
-function preQuit(view)
-	local tabb = get_tab(view)
-	if tabb then
-		tabb:close()
+function preQuit(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		ft:close()
 		return false
 	elseif utils.get_panes_quantity(micro.CurTab()) == 2 then --todo
 		--	micro:Close()
-		--tabb:close()
+		--ft:close()
 		return true
 	end
 end
 
 -- Ctrl + A
-function preSelectAll(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if tabb.view:is_rename_at_cursor_happening() then
-			tabb.view.virtual.cursor:select_file_name()
+function preSelectAll(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if ft.view:is_rename_at_cursor_happening() then
+			ft.view.virtual.cursor:select_file_name()
 		else
-			--tab.view.virtual.cursor:select_all()--todo
+			--ft.view.virtual.cursor:select_all()--todo
 		end
 		return false
 	end
@@ -198,37 +220,37 @@ function preSelectAll(view)
 end
 
 -- Ctrl + Up Arrow
-function preCursorStart(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if is_action_happening(tabb) then
+function preCursorStart(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if is_action_happening(ft) then
 			return false
 		else
-			tabb.view:move_cursor_to_owner()
+			ft.view:move_cursor_to_owner()
 			return false
 		end
 	end
 end
 
 -- Ctrl + Down Arrow
-function preCursorEnd(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if is_action_happening(tabb) then
+function preCursorEnd(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if is_action_happening(ft) then
 			return false
 		else
-			tabb.view:move_cursor_to_next_dir_outside()
+			ft.view:move_cursor_to_next_dir_outside()
 			return false
 		end
 	end
 end
 
 -- Ctrl + Right Arrow
-function preWordRight(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if tabb.view:is_rename_at_cursor_happening() then
-			if tabb.view.virtual.cursor:get_can_move_right() then
+function preWordRight(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if ft.view:is_rename_at_cursor_happening() then
+			if ft.view.virtual.cursor:get_can_move_right() then
 				return true
 			end
 		end
@@ -238,11 +260,11 @@ function preWordRight(view)
 end
 
 -- Ctrl + Left Arrow
-function preWordLeft(view)
-	local tabb = get_tab(view)
-	if tabb then
-		if tabb.view:is_rename_at_cursor_happening() then
-			if tabb.view.virtual.cursor:get_can_move_left() then
+function preWordLeft(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then
+		if ft.view:is_rename_at_cursor_happening() then
+			if ft.view.virtual.cursor:get_can_move_left() then
 				return true --todo theres a bug here when this is the first input after rename on cursor
 			end
 		end
@@ -252,69 +274,70 @@ function preWordLeft(view)
 end
 
 -- Alt + Down Arrow
-function preMoveLinesDown(view) --todo
+function preMoveLinesDown(bp) --todo
 	return true
 end
 
 -- Alt + Up Arrow
-function preMoveLinesUp(view) --todo
+function preMoveLinesUp(bp) --todo
 	return true
 end
 
 -- Mouse Left Click
-function onMousePress(view)
-	local tabb = get_tab(view)
-	if tabb then
-		tabb.view.virtual:click_event()
+function onMousePress(bp)
+	local ft = get_filetab_by_bp(bp)
+
+	if ft then
+		ft.view.virtual:click_event()
 	end
 end
 
 -- Mouse Left Click Release
 function onMouseRelease(bp)
-	--tab.view.virtual:move_cursor(3) --todo
+	--ft.view.virtual:move_cursor(3) --todo
 end
 
 --Left Click Drag
-function onMouseDrag(view)
-	tab.view.virtual:drag_event()
+function onMouseDrag(bp)
+	ft.view.virtual:drag_event()
 end
 
 -- MouseWheel Down
-function onScrollDown(view)
-	view:ScrollAdjust()
+function onScrollDown(bp)
+	bp:ScrollAdjust()
 end
 
 -- CtrlF
-function preFind(view)
+function preFind(bp)
 	-- Since something is always selected, clear before a find
 	-- Prevents copying the selection into the find input
---	clearselection_if_tree(view)
+	--	clearselection_if_tree(bp)
 end
 
 -- FIXME: doesn't work for whatever reason
-function onFind(view)
+function onFind(bp)
 	-- Select the whole line after a find, instead of just the input txt
-	--selectline_if_tree(view)
+	--selectline_if_tree(bp)
 end
 
 -- CtrlN after CtrlF
-function onFindNext(view)
-	--selectline_if_tree(view)
+function onFindNext(bp)
+	--selectline_if_tree(bp)
 end
 
 -- CtrlP after CtrlF
-function onFindPrevious(view)
---	selectline_if_tree(view)
+function onFindPrevious(bp)
+	--	selectline_if_tree(bp)
 end
 
 -- Tab
 -- Workaround for tab getting inserted into opened files
 -- Ref https://github.com/zyedidia/micro/issues/992
 local tab_pressed = false
-function preIndentSelection(view)
+function preIndentSelection(bp)
 	if tab:get_is_selected() then
 		tab_pressed = true
-		tab:load(tab.view:get_entry_at_line(tab.view.Cursor:get_y()).abs_path)
+		tab:load(ft.view:get_entry_at_line(ft.view.Cursor:get_y()).abs_path)
 		return false
 	end
 end
@@ -327,40 +350,40 @@ function preInsertTab(_)
 end
 
 -- Shift + Up
-function preSelectUp(view) -- bug the first line is nor selected entirly --todo
-	if is_tab_selected(view) then
-		if tab.view.Cursor:get_x() ~= 0 then
-			tab.view.Highlight:end_of_line()
-			tab.view:append_cursor_list(tab.view.Cursor:get_y())
+function preSelectUp(bp) -- bug the first line is nor selected entirly --todo
+	if is_tab_selected(bp) then
+		if ft.view.Cursor:get_x() ~= 0 then
+			ft.view.Highlight:end_of_line()
+			ft.view:append_cursor_list(ft.view.Cursor:get_y())
 		end
-		tab.view.Highlight:up_line()
-		tab.view:append_cursor_list(tab.view.Cursor:get_y() - 1)
+		ft.view.Highlight:up_line()
+		ft.view:append_cursor_list(ft.view.Cursor:get_y() - 1)
 	end
 end
 
 -- Shift + Down
-function preSelectDown(view) --todo
-	if tab.view.Cursor:get_x() ~= 0 then
-		tab.view.Highlight:current_line_undo()
-		tab.view.Highlight:down_line()
-		tab.view:append_cursor_list(tab.view.Cursor:get_y() - 1)
+function preSelectDown(bp) --todo
+	if ft.view.Cursor:get_x() ~= 0 then
+		ft.view.Highlight:current_line_undo()
+		ft.view.Highlight:down_line()
+		ft.view:append_cursor_list(ft.view.Cursor:get_y() - 1)
 	end
-	tab.view:append_cursor_list(tab.view.Cursor:get_y())
+	ft.view:append_cursor_list(ft.view.Cursor:get_y())
 end
 
 --TODO
 
 -- Close all
-function preQuitAll(_) 
+function preQuitAll(_)
 	--tab:close()
 end
 
-function onNextSplit(view)
-	--selectline_if_tree(view)
+function onNextSplit(bp)
+	--selectline_if_tree(bp)
 end
 
-function onPreviousSplit(view)
-	--selectline_if_tree(view)
+function onPreviousSplit(bp)
+	--selectline_if_tree(bp)
 end
 
 ------------------------------------------------------------------
@@ -369,126 +392,125 @@ end
 ------------------------------------------------------------------
 
 -- Ctrl + R
-function preToggleRuler(view)
-	return not is_action_on_any_tab(view)
+function preToggleRuler(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preStartOfText(view) --todo
-	return not is_action_on_any_tab(view)
+function preStartOfText(bp) --todo
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectLeft(view)
-	return not is_action_on_any_tab(view)
+function preSelectLeft(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectRight(view)
-	return not is_action_on_any_tab(view)
+function preSelectRight(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectWordRight(view)
-	return not is_action_on_any_tab(view)
+function preSelectWordRight(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectWordLeft(view)
-	return not is_action_on_any_tab(view)
+function preSelectWordLeft(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectToStartOfLine(view)
-	return not is_action_on_any_tab(view)
+function preSelectToStartOfLine(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectToStartOfText(view)
-	return not is_action_on_any_tab(view)
+function preSelectToStartOfText(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectToEndOfLine(view)
-	return not is_action_on_any_tab(view)
+function preSelectToEndOfLine(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectToStart(view)
-	return not is_action_on_any_tab(view)
+function preSelectToStart(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSelectToEnd(view)
-	return not is_action_on_any_tab(view)
+function preSelectToEnd(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preDeleteWordLeft(view)
-	return not is_action_on_any_tab(view)
+function preDeleteWordLeft(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preDeleteWordRight(view)
-	return not is_action_on_any_tab(view)
+function preDeleteWordRight(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preOutdentSelection(view)
-	return not is_action_on_any_tab(view)
+function preOutdentSelection(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preOutdentLine(view)
-	return not is_action_on_any_tab(view)
+function preOutdentLine(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preCut(view)
-	return not is_action_on_any_tab(view)
+function preCut(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preCutLine(view)
-	return not is_action_on_any_tab(view)
+function preCutLine(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preDuplicateLine(view)
+function preDuplicateLine(bp)
 	return true
 end
 
-function prePaste(view)
-	return not is_action_on_any_tab(view)
+function prePaste(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function prePastePrimary(view)
-	return not is_action_on_any_tab(view)
+function prePastePrimary(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preMouseMultiCursor(view)
-	return not is_action_on_any_tab(view)
+function preMouseMultiCursor(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function onMouseMultiCursor(view)
-	return not is_action_on_any_tab(view)
+function onMouseMultiCursor(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preSpawnMultiCursor(view)
-	return not is_action_on_any_tab(view)
+function preSpawnMultiCursor(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function preEndOfLine(view)
-	return not is_action_on_any_tab(view)
+function preEndOfLine(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function onStartOfLine(view)
-	return not is_action_on_any_tab(view)
+function onStartOfLine(bp)
+	return not is_action_on_any_tab(bp)
 end
 
-function is_action_on_any_tab(view)
-	local tabb = get_tab(view)
-	return tabb or true and false
+function is_action_on_any_tab(bp)
+	local ft = get_filetab_by_bp(bp)
+	return ft or true and false
 end
+
+
 
 function init()
-
-
-	-- Adds colors to the ".." and any dir's in the tree view via syntax highlighting
+	-- Adds colors to the ".." and any dir's in the tree bp via syntax highlighting
 	-- TODO: Change it to work with git, based on untracked/changed/added/whatever
 	config.AddRuntimeFile('filemanager', config.RTSyntax, 'syntax/filemanager.yaml')
 
 	Settings.load_default()
 
 	local current_dir = os.Getwd()
-	tab = Tab:new(micro.CurPane(), current_dir)
+	
+	config.MakeCommand('ft', toggle_filetab, config.NoComplete)
 
 	if Settings.get_option("openOnStart") then
-		tab:open()
-		tree_view = tab.pane
-
+		toggle_filetab()
 	end
 end
