@@ -4,7 +4,7 @@ local micro = import('micro')
 local config = import('micro/config')
 local os = import('os')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local Tab = dofile(config.ConfigDir .. '/plug/filemanager/tab.lua')
+local Filetab = dofile(config.ConfigDir .. '/plug/filemanager/filetab.lua')
 local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
 
 
@@ -32,7 +32,7 @@ local function toggle_filetab()
 	local ft = get_filetab_by_tab(micro.CurTab())
 
 	if not ft then
-		ft = Tab:new(micro.CurPane(), os.Getwd())
+		ft = Filetab:new(micro.CurPane(), os.Getwd())
 		table.insert(filetab_map, ft)
 		ft:toggle()
 	else

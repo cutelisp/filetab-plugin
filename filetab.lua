@@ -7,11 +7,11 @@ local View = dofile(config.ConfigDir .. '/plug/filemanager/view.lua')
 local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
 
 
-local Tab = {}
-Tab.__index = Tab
+local Filetab = {}
+Filetab.__index = Filetab
 
-function Tab:new(bp, current_directory)
-	local instance = setmetatable({}, Tab)
+function Filetab:new(bp, current_directory)
+	local instance = setmetatable({}, Filetab)
 	instance.is_selected = true
 	instance.bp = bp
 	instance.current_directory = current_directory
@@ -22,7 +22,7 @@ function Tab:new(bp, current_directory)
 end
 
 -- Changes the current directory, get the new entry_list, refresh the view and move the cursor to the ".." by default
-function Tab:load(directory)
+function Filetab:load(directory)
 	self.current_directory = directory
 	self.entry_list = Entry:get_new_entry_list(directory, nil)
 	self.view:refresh(self.entry_list, self.current_directory)
@@ -30,7 +30,7 @@ function Tab:load(directory)
 end
 
 -- (Tries to) go load one "step" from the current directory
-function Tab:load_back_directory()
+function Filetab:load_back_directory()
 	local current_dir = self.current_directory
 	local one_back_directory = filepath.Dir(current_dir)
 	-- Try opening, assuming they aren't at "root", by checking if it matches last dir
@@ -40,7 +40,7 @@ function Tab:load_back_directory()
 end
 
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
-function Tab:setup_settings()
+function Filetab:setup_settings()
 	self:resize(Settings.Const.minWidth)
 	self.bp.Buf:SetOptionNative('scrollbar', Settings.get_option("scrollbar"))
 	self.bp.Buf:SetOptionNative('ruler', false)
@@ -54,16 +54,16 @@ function Tab:setup_settings()
 end
 
 -- Set the width of tab to num
-function Tab:resize(num)
+function Filetab:resize(num)
 	self.bp:ResizePane(num)
 end
 
-function Tab:close()
+function Filetab:close()
 	self.bp:Quit()
 	self.is_open = false
 end
 
-function Tab:open()
+function Filetab:open()
 	-- Open a new Vsplit (on the very left)
 	self.bp:VSplitIndex(buffer.NewBuffer('', ''), true)
 	self.is_open = true
@@ -71,7 +71,7 @@ function Tab:open()
 	self:load(self.current_directory)
 end
 
-function Tab:toggle()
+function Filetab:toggle()
 	if self.is_open then
 		self:close()
 	else
@@ -79,12 +79,12 @@ function Tab:toggle()
 	end
 end
 
-function Tab:get_tab()
+function Filetab:get_tab()
 	return self.bp:Tab()
 end
 
-function Tab:get_is_selected()
+function Filetab:get_is_selected()
 	return micro.CurPane() == self.bp
 end
 
-return Tab
+return Filetab
