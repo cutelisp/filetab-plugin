@@ -113,7 +113,6 @@ function preInsertNewline(bp)
 	local view = ft.view
 	if view:is_rename_at_cursor_happening() then
 		view:rename_at_cursor()
-		view:set_read_only(true)
 		view:refresh()
 	elseif view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
 		ft:load_back_directory()

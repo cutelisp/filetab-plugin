@@ -142,10 +142,9 @@ function View:rename_at_cursor()
 	entry:set_file_name(line_text)
 	local log = golib_os.Rename(old_path, new_path)
 
+	self:set_read_only(true)
 	-- Output the log, if any, of the rename
-	if "log" ~= nil then
-		micro.Log('Rename log: ', log)
-	end
+	if log then 	micro.Log('Rename log: ', log) end
 end
 
 function View:is_action_happening()

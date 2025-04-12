@@ -142,7 +142,7 @@ function Virtual.Cursor:select_file_name_no_extension()
   		end
 	end
 	-- Prevent the cursor escape out of bounds
-	self:set_loc_x(dot_loc - 1)
+	self:set_loc_x(dot_loc - 1)--todo bug here
 end
 
 function Virtual.Cursor:restore_loc()
