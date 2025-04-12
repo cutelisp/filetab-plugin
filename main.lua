@@ -48,63 +48,59 @@ end
 -- Up Arrow
 function preCursorUp(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_action_happening() or ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
-			return false
-		end
+	if not ft then return end
+
+	if ft.view:is_action_happening() or
+		ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+		return false
 	end
 end
 
 function onCursorUp(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		ft.view.virtual:select_line_on_cursor()
-	end
+	if not ft then return end
+
+	ft.view.virtual:select_line_on_cursor()
+
 end
 
 -- Down Arrow
 function preCursorDown(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_action_happening() then
-			return false
-		end
-	end
+	if not ft then return end
+
+	return not ft.view:is_action_happening()
 end
 
 function onCursorDown(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		ft.view.virtual:select_line_on_cursor()
-	end
+	if not ft then return end
+
+	ft.view.virtual:select_line_on_cursor()
 end
 
 -- Left Arrow
-function preCursorLeft(bp)
+function preCursorLeft(bp)--todo this is bugged if a file stars with an empty space
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_rename_at_cursor_happening() then
-			if ft.view.virtual.cursor:get_can_move_left() then
-				return true
-			end
-		else
-			ft.view:collapse_directory()
-		end
+	if not ft then return end
+
+	if ft.view:is_rename_at_cursor_happening() then
+		return ft.view.virtual.cursor:get_can_move_left()
+	else
+		ft.view:collapse_directory()
 		return false
 	end
 end
 
 -- Right Arrow
-function preCursorRight(bp)
+function preCursorRight(bp) 
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_rename_at_cursor_happening() then
-			if ft.view.virtual.cursor:get_can_move_right() then
-				return true
-			end
-		else
-			ft.view:expand_directory()
-		end
+	if not ft then return end
+
+	if ft.view:is_rename_at_cursor_happening() then
+		return ft.view.virtual.cursor:get_can_move_right()
+	else
+		ft.view:expand_directory()
 		return false
 	end
 end
@@ -112,71 +108,78 @@ end
 -- Enter
 function preInsertNewline(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_rename_at_cursor_happening() then
-			ft.view:rename_at_cursor()
-			ft.view:set_read_only(true)
-			ft.view:refresh()
-		elseif ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
-			ft:load_back_directory()
-		else
-			ft.view:toggle_directory()
-		end
-		return false
+	if not ft then return end
+
+	local view = ft.view
+	if view:is_rename_at_cursor_happening() then
+		view:rename_at_cursor()
+		view:set_read_only(true)
+		view:refresh()
+	elseif view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+		ft:load_back_directory()
+	else
+		view:toggle_directory()
 	end
+
+	return false
+end
+
+-- Workaround for tab getting inserted into opened files --todo check if this is happening
+-- Ref https://github.com/zyedidia/micro/issues/992
+-- Tab
+function preIndentSelection(bp) --todo bug tabing ..
+	local ft = get_filetab_by_bp(bp)
+	if not ft then return end
+
+	ft:load(ft.view:get_entry_at_line(ft.view.virtual.cursor:get_line_num()).abs_path)
+	return false
 end
 
 -- Backspace
 function preBackspace(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_rename_at_cursor_happening() then
-			if ft.view.virtual.cursor:get_can_move_left() then
-				return true
-			end
-		end
-		return false
-	end
-	return true
+	if not ft then return end
+
+    return ft.view:is_rename_at_cursor_happening() and ft.view.virtual.cursor:get_can_move_left()
 end
 
 -- PageUp
 function preCursorPageUp(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_action_happening() then
-			return false
-		else
-			ft.view.virtual:move_cursor_and_select_line(Config.previousDirectoryLine)
-			return false
-		end
+	if not ft then return end
+
+	if not ft.view:is_action_happening() then
+		ft.view.virtual:move_cursor_and_select_line(Settings.Const.previousDirectoryLine)
 	end
+	return false
 end
 
 -- PageDown
-function preCursorPageDown(bp)
+function preCursorPageDown(bp) --todo not reaching bot 
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_action_happening() then
-			return false
-		end
+	if not ft then return end
+
+	if ft.view:is_action_happening() then
+		return false
 	end
 end
 
 function onCursorPageDown(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		ft.view.virtual:select_line_on_cursor()
-	end
+	if not ft then return end
+
+	ft.view.virtual:select_line_on_cursor()
 end
 
 -- F2
 function preSave(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if not ft.view:is_rename_at_cursor_happening() then
-			ft.view:pre_rename_at_cursor()
-		end
+	if not ft then return end
+
+	if not ft.view:is_rename_at_cursor_happening() then
+		ft.view:pre_rename_at_cursor()
+	else
+		ft.view.virtual.cursor:select_file_name_no_extension()--todo do a cycling all/name/extension
 	end
 	return false
 end
@@ -188,10 +191,11 @@ function preQuit(bp)
 	local ft = get_filetab_by_bp(bp)
 	if ft then
 		ft:close()
+		micro.CurPane():Quit()
 		return false
-	elseif utils.get_panes_quantity(micro.CurTab()) == 2 then --todo
-		--	micro:Close()
-		--ft:close()
+	elseif utils.get_panes_quantity(micro.CurTab()) == 2 then --todo add setting, maybe need to create new setting
+		ft = get_filetab_by_tab(bp:Tab())
+		ft:close()
 		return true
 	end
 end
@@ -199,69 +203,57 @@ end
 -- Ctrl + A
 function preSelectAll(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_rename_at_cursor_happening() then
-			ft.view.virtual.cursor:select_file_name()
-		else
-			--ft.view.virtual.cursor:select_all()--todo
-		end
-		return false
+	if not ft then return end
+
+	if ft.view:is_rename_at_cursor_happening() then
+		ft.view.virtual.cursor:select_file_name()
+	else
+		--ft.view.virtual.cursor:select_all()--todo
 	end
-	return true
+	return false
 end
 
 -- Ctrl + Up Arrow
 function preCursorStart(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_action_happening() then
-			return false
-		else
-			ft.view:move_cursor_to_owner()
-			return false
-		end
+	if not ft then return end
+	
+	if not ft.view:is_action_happening() then
+		ft.view:move_cursor_to_owner()
 	end
+	return false
 end
 
 -- Ctrl + Down Arrow
 function preCursorEnd(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_action_happening() then
-			return false
-		else
-			ft.view:move_cursor_to_next_dir_outside()
-			return false
-		end
+	if not ft then return end
+
+	if not ft.view:is_action_happening() then --todo visual bug 
+		ft.view:move_cursor_to_next_dir_outside()
 	end
+	return false
 end
+
+
 
 -- Ctrl + Right Arrow
 function preWordRight(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_rename_at_cursor_happening() then
-			if ft.view.virtual.cursor:get_can_move_right() then
-				return true
-			end
-		end
-		return false
-	end
-	return true
+
+	if not ft then return end
+
+	return ft.view:is_rename_at_cursor_happening() and
+		ft.view.virtual.cursor:get_can_move_right()
 end
 
 -- Ctrl + Left Arrow
 function preWordLeft(bp)
 	local ft = get_filetab_by_bp(bp)
-	if ft then
-		if ft.view:is_rename_at_cursor_happening() then
-			if ft.view.virtual.cursor:get_can_move_left() then
-				return true --todo theres a bug here when this is the first input after rename on cursor
-			end
-		end
-		return false
-	end
-	return true
+	if not ft then return end
+
+	return ft.view:is_rename_at_cursor_happening() and
+		ft.view.virtual.cursor:get_can_move_left()
 end
 
 -- Alt + Down Arrow
@@ -295,7 +287,7 @@ end
 
 -- MouseWheel Down
 function onScrollDown(bp)
-	bp:ScrollAdjust()
+--	bp:ScrollAdjust()
 end
 
 -- CtrlF
@@ -321,24 +313,9 @@ function onFindPrevious(bp)
 	--	selectline_if_tree(bp)
 end
 
--- Tab
--- Workaround for tab getting inserted into opened files
--- Ref https://github.com/zyedidia/micro/issues/992
-local tab_pressed = false
-function preIndentSelection(bp)
-	if tab:get_is_selected() then
-		tab_pressed = true
-		tab:load(ft.view:get_entry_at_line(ft.view.Cursor:get_y()).abs_path)
-		return false
-	end
-end
 
-function preInsertTab(_)
-	if tab_pressed then
-		tab_pressed = false
-		return false
-	end
-end
+
+
 
 -- Shift + Up
 function preSelectUp(bp) -- bug the first line is nor selected entirly --todo
@@ -388,7 +365,7 @@ function preToggleRuler(bp)
 end
 
 function preStartOfText(bp) --todo
-	return not is_action_on_any_tab(bp)
+	return not is_action_on_any_asdastab(bp)
 end
 
 function preSelectLeft(bp)
@@ -476,11 +453,11 @@ function preSpawnMultiCursor(bp)
 end
 
 function preEndOfLine(bp)
-	return not is_action_on_any_tab(bp)
+	return false
 end
 
-function onStartOfLine(bp)
-	return not is_action_on_any_tab(bp)
+function preStartOfLine(bp)
+	return false
 end
 
 function is_action_on_any_tab(bp)
