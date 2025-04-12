@@ -1,7 +1,7 @@
 local micro = import('micro')
 local config = import('micro/config')
-
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
+
 
 local Virtual = {}
 Virtual.__index = Virtual
@@ -20,11 +20,8 @@ function Virtual:click_event()
     self.selected_lines = {self.cursor:get_line_num()}
     self.cursor:save_current_loc()
     self.bp:Deselect()
-    --self.cursor:ser_loc_zero_zero()
     self.cursor:select_all()
-   -- self.cursor:ser_loc_zero_zero()
 end
-
 
 function Virtual:unselect_all()
    self.bp:Deselect()
@@ -37,7 +34,6 @@ function Virtual:drag_event()
     local is_up_direction = hovered_line < previous_interacted_line
     local is_hovered_line_selected = self:is_line_selected(hovered_line)
     self.last_line_interact = hovered_line
- --   micro.InfoBar():Error(self.selected_lines)
 
     if hovered_line == start_click_line then
         self.bp:RemoveAllMultiCursors()
@@ -77,40 +73,20 @@ function Virtual:select_line_on_cursor()
     self.bp.Cursor:SelectLine()
 end
 
-function Virtual:rr()
- --   self.bp.Cursor.Loc.Y = 0
- self.bp:Deselect()
-    self.cursor:ser_loc_zero_zero()
-
--- self:move_cursor_and_select_line(5)
-    self.bp:SpawnMultiCursorUpN(-1)
-    self.bp:SpawnMultiCursorUpN(-1)
-    self.cursor:select_all()
-
-    --for i = 1, #cursors do
- --       cursors[i]:SelectLine()
- --   end
-end
-
-
 function Virtual:refresh()
     self.cursor:restore_loc()
     self.cursor:select_all()
 end
 
 function Virtual:move_cursor_and_select_line(line_num)
---    self.selected_lines = {self.cursor:get_loc().Y}
     self.bp.Cursor.Y = line_num
     self.bp.Cursor:SelectLine()
 end
-
-
 
 function Virtual:move_cursor(line_num)
         self.selected_lines = {self.cursor:get_line_num()}
         self.bp.Cursor.Y = line_num
 end
-
 
 Virtual.Cursor = {}
 
@@ -153,11 +129,19 @@ function Virtual.Cursor:select_file_name_no_extension()
       		self.bp:SelectLeft()
   		end
 	end
+	-- Prevent the cursor escape out of bounds
+	self:set_loc_x(dot_loc - 1)
 end
 
 function Virtual.Cursor:restore_loc()
     self.bp:Deselect()
     self:set_loc(self.last_click_loc)
+end
+
+function Virtual.Cursor:save_current_loc()
+    --self.cursor_loc_tmp = self.bp.Cursor.Loc seems to pass a reference not a value
+    self.last_click_loc.X = self.bp.Cursor.Loc.X
+    self.last_click_loc.Y = self.bp.Cursor.Loc.Y
 end
 
 function Virtual.Cursor:get_line_text()
@@ -168,29 +152,22 @@ function Virtual.Cursor:get_line_text_len()
 	return #self.bp.Buf:line(self:get_line_num()) + 3
 end
 
-
-function Virtual.Cursor:save_current_loc()
-    --self.cursor_loc_tmp = self.bp.Cursor.Loc seems to pass a reference not a value
-    self.last_click_loc.X = self.bp.Cursor.Loc.X
-    self.last_click_loc.Y = self.bp.Cursor.Loc.Y
-end
-
-function Virtual.Cursor:get_loc()
-    return self.bp.Cursor.Loc
-end
-function Virtual.Cursor:get_loc_x()
-    return self.bp.Cursor.Loc.X
-end
 function Virtual.Cursor:get_can_move_right()
 	-- -3 because line text has an icon which has more than 1 byte
 	local current_line_len = #self:get_line_text() - 3
-    return self:get_loc_x() <= current_line_len
+    return self:get_loc_x() < current_line_len
 end
 function Virtual.Cursor:get_can_move_left()
     return self:get_loc_x() > utils.first_char_loc(self:get_line_text())
 end
 
+function Virtual.Cursor:get_loc()
+    return self.bp.Cursor.Loc
+end
 
+function Virtual.Cursor:get_loc_x()
+    return self.bp.Cursor.Loc.X
+end
 
 function Virtual.Cursor:get_loc_y()
     return self.bp.Cursor.Loc.Y
