@@ -217,7 +217,7 @@ end
 function preCursorStart(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
-	
+
 	if not ft.view:is_action_happening() then
 		ft.view:move_cursor_to_owner()
 	end
@@ -235,12 +235,9 @@ function preCursorEnd(bp)
 	return false
 end
 
-
-
 -- Ctrl + Right Arrow
 function preWordRight(bp)
 	local ft = get_filetab_by_bp(bp)
-
 	if not ft then return end
 
 	return ft.view:is_rename_at_cursor_happening() and
@@ -266,28 +263,45 @@ function preMoveLinesUp(bp) --todo
 	return true
 end
 
+-- Alt + Right Arrow
+function preEndOfLine(bp)
+	local ft = get_filetab_by_bp(bp)
+	if not ft then return end
+
+	return ft.view:is_rename_at_cursor_happening()
+end
+
+-- Alt + Left Arrow
+function preStartOfTextToggle(bp)
+	local ft = get_filetab_by_bp(bp)
+	if not ft then return end
+	
+	if ft.view:is_rename_at_cursor_happening() then
+		ft.view.virtual.cursor:move_to_file_name_start()
+	end
+	return false
+end
+
+
 -- Mouse Left Click
 function onMousePress(bp)
 	local ft = get_filetab_by_bp(bp)
+	if not ft then return end
 
-	if ft then
-		ft.view.virtual:click_event()
-	end
-end
-
--- Mouse Left Click Release
-function onMouseRelease(bp)
-	--ft.view.virtual:move_cursor(3) --todo
+	ft.view.virtual:click_event()
 end
 
 --Left Click Drag
 function onMouseDrag(bp)
+	local ft = get_filetab_by_bp(bp)
+	if not ft then return end
+
 	ft.view.virtual:drag_event()
 end
 
 -- MouseWheel Down
 function onScrollDown(bp)
---	bp:ScrollAdjust()
+	bp:ScrollAdjust() --fix micro bug
 end
 
 -- CtrlF
@@ -312,10 +326,6 @@ end
 function onFindPrevious(bp)
 	--	selectline_if_tree(bp)
 end
-
-
-
-
 
 -- Shift + Up
 function preSelectUp(bp) -- bug the first line is nor selected entirly --todo
@@ -452,13 +462,6 @@ function preSpawnMultiCursor(bp)
 	return not is_action_on_any_tab(bp)
 end
 
-function preEndOfLine(bp)
-	return false
-end
-
-function preStartOfLine(bp)
-	return false
-end
 
 function is_action_on_any_tab(bp)
 	local ft = get_filetab_by_bp(bp)

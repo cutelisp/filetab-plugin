@@ -106,14 +106,26 @@ function Virtual.Cursor:select_all()
     end
 end
 
+
+function Virtual.Cursor:get_line_text()
+	return self.bp.Buf:line(self:get_line_num())
+end
+
+function Virtual.Cursor:get_line_text_len()
+	return #self.bp.Buf:line(self:get_line_num()) + 3
+end
+
+function Virtual.Cursor:move_to_file_name_start()
+	local line_string = self:get_line_text()
+	local first_char_loc = utils.first_char_loc(line_string)
+	self.bp:Deselect()
+	self:set_loc_x(first_char_loc)
+end
+
 -- Moves the cursor to the first character of file_name, 
 -- Selects everything to end of the line
 function Virtual.Cursor:select_file_name()
-	local line_string = self:get_line_text()
-	local first_char_loc = utils.first_char_loc(line_string)
-
-	self.bp:Deselect()
-	self:set_loc_x(first_char_loc)
+	self:move_to_file_name_start()
 	self.bp:SelectToEndOfLine()
 end
 
@@ -144,13 +156,7 @@ function Virtual.Cursor:save_current_loc()
     self.last_click_loc.Y = self.bp.Cursor.Loc.Y
 end
 
-function Virtual.Cursor:get_line_text()
-	return self.bp.Buf:line(self:get_line_num())
-end
 
-function Virtual.Cursor:get_line_text_len()
-	return #self.bp.Buf:line(self:get_line_num()) + 3
-end
 
 function Virtual.Cursor:get_can_move_right()
 	-- -3 because line text has an icon which has more than 1 byte
