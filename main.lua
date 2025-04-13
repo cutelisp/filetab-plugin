@@ -34,10 +34,8 @@ local function toggle_filetab()
 	if not ft then
 		ft = Filetab:new(micro.CurPane(), os.Getwd())
 		table.insert(filetab_map, ft)
-		ft:toggle()
-	else
-		ft:toggle()
 	end
+	ft:toggle()
 end
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,10 +48,15 @@ function preCursorUp(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
 
-	if ft.view:is_action_happening() or
-		ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+	if ft.view:is_rename_at_cursor_happening() then
+		ft.view.virtual.cursor:move_to_file_name_start()
 		return false
 	end
+
+	if ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+		return false
+	end
+	return not ft.view:is_action_happening()
 end
 
 function onCursorUp(bp)
@@ -61,13 +64,17 @@ function onCursorUp(bp)
 	if not ft then return end
 
 	ft.view.virtual:select_line_on_cursor()
-
 end
 
 -- Down Arrow
 function preCursorDown(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
+
+	if ft.view:is_rename_at_cursor_happening() then
+		ft.view.virtual.cursor:move_to_end()
+		return false
+	end
 
 	return not ft.view:is_action_happening()
 end

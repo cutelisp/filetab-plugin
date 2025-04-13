@@ -122,6 +122,11 @@ function Virtual.Cursor:move_to_file_name_start()
 	self:set_loc_x(first_char_loc)
 end
 
+function Virtual.Cursor:move_to_end()
+	self.bp:Deselect()
+	self.bp.Cursor:End()
+end
+
 -- Moves the cursor to the first character of file_name, 
 -- Selects everything to end of the line
 function Virtual.Cursor:select_file_name()
