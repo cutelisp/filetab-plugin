@@ -106,7 +106,6 @@ function Virtual.Cursor:select_all()
     end
 end
 
-
 function Virtual.Cursor:get_line_text()
 	return self.bp.Buf:line(self:get_line_num())
 end
@@ -146,8 +145,8 @@ function Virtual.Cursor:select_file_name_no_extension()
       		self.bp:SelectLeft()
   		end
 	end
-	-- Prevent the cursor escape out of bounds
-	self:set_loc_x(dot_loc - 1)--todo bug here
+	-- This makes get_can_move_right return true after selecting
+	self.bp.Cursor:Left()
 end
 
 function Virtual.Cursor:restore_loc()
@@ -162,19 +161,16 @@ function Virtual.Cursor:adjust()
 	end
 end
 
-
 function Virtual.Cursor:save_current_loc()
     --self.cursor_loc_tmp = self.bp.Cursor.Loc seems to pass a reference not a value
     self.last_click_loc.X = self.bp.Cursor.Loc.X
     self.last_click_loc.Y = self.bp.Cursor.Loc.Y
 end
 
-
-
 function Virtual.Cursor:get_can_move_right()
 	-- -3 because line text has an icon which has more than 1 byte
 	local current_line_len = #self:get_line_text() - 3
-    return self:get_loc_x() < current_line_len
+    return self:get_loc_x() <= current_line_len
 end
 function Virtual.Cursor:get_can_move_left()
     return self:get_loc_x() > utils.first_char_loc(self:get_line_text())
