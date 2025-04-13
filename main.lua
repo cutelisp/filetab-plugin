@@ -133,11 +133,15 @@ end
 -- Workaround for tab getting inserted into opened files --todo check if this is happening
 -- Ref https://github.com/zyedidia/micro/issues/992
 -- Tab
-function preIndentSelection(bp) --todo bug tabing ..
+function preIndentSelection(bp) 
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
 
-	ft:load(ft.view:get_entry_at_line(ft.view.virtual.cursor:get_line_num()).abs_path)
+	if ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+		ft:load_back_directory()
+	else
+		ft:load(ft.view:get_entry_at_line(ft.view.virtual.cursor:get_line_num()).abs_path)
+	end
 	return false
 end
 
