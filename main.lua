@@ -100,7 +100,7 @@ function preCursorLeft(bp)--todo this is bugged if a file stars with an empty sp
 end
 
 -- Right Arrow
-function preCursorRight(bp) 
+function preCursorRight(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
 
@@ -159,7 +159,8 @@ function preCursorPageUp(bp)
 	if not ft then return end
 
 	if not ft.view:is_action_happening() then
-		ft.view.virtual:move_cursor_and_select_line(Settings.Const.previousDirectoryLine)
+		ft.view.virtual:move_cursor_and_select_line(Settings.Const.previousDirectoryLine + 1) --todo if the dir is empty
+		ft.view.virtual:adjust()
 	end
 	return false
 end
@@ -169,16 +170,11 @@ function preCursorPageDown(bp) --todo not reaching bot
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
 
-	if ft.view:is_action_happening() then
-		return false
+	if not ft.view:is_action_happening() then
+		ft.view.virtual:move_cursor_and_select_line(ft.bp.Buf:LinesNum() - 1)
+		ft.view.virtual:adjust()
 	end
-end
-
-function onCursorPageDown(bp)
-	local ft = get_filetab_by_bp(bp)
-	if not ft then return end
-
-	ft.view.virtual:select_line_on_cursor()
+	return false
 end
 
 -- F2

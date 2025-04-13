@@ -88,6 +88,10 @@ function Virtual:move_cursor(line_num)
         self.bp.Cursor.Y = line_num
 end
 
+function Virtual:adjust()
+	self.bp:Center()
+end
+
 Virtual.Cursor = {}
 
 function Virtual.Cursor:new(bp)
