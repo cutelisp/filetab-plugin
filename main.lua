@@ -248,8 +248,12 @@ function preWordLeft(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
 
-	return ft.view:is_rename_at_cursor_happening() and
-		ft.view.virtual.cursor:get_can_move_left()
+	return ft.view:is_rename_at_cursor_happening() and ft.view.virtual.cursor:get_can_move_left()
+end
+
+function onWordLeft(bp)
+	local ft = get_filetab_by_bp(bp)
+	if ft then ft.view.virtual.cursor:adjust() end
 end
 
 -- Alt + Down Arrow

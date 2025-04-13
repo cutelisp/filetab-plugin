@@ -150,6 +150,14 @@ function Virtual.Cursor:restore_loc()
     self:set_loc(self.last_click_loc)
 end
 
+function Virtual.Cursor:adjust()
+	local first_char_loc = utils.first_char_loc(self:get_line_text())
+	if self:get_loc_x() < first_char_loc then
+		self:set_loc_x(first_char_loc)
+	end
+end
+
+
 function Virtual.Cursor:save_current_loc()
     --self.cursor_loc_tmp = self.bp.Cursor.Loc seems to pass a reference not a value
     self.last_click_loc.X = self.bp.Cursor.Loc.X
