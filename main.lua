@@ -34,8 +34,11 @@ local function toggle_filetab()
 	if not ft then
 		ft = Filetab:new(micro.CurPane(), os.Getwd())
 		table.insert(filetab_map, ft)
+
 	end
 	ft:toggle()
+	
+
 end
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -159,8 +162,7 @@ function preCursorPageUp(bp)
 	if not ft then return end
 
 	if not ft.view:is_action_happening() then
-		ft.view.virtual:move_cursor_and_select_line(Settings.Const.previousDirectoryLine + 1) --todo if the dir is empty
-		ft.view.virtual:adjust()
+		ft.view.virtual:move_cursor_and_select_first_line()
 	end
 	return false
 end
@@ -171,8 +173,7 @@ function preCursorPageDown(bp) --todo not reaching bot
 	if not ft then return end
 
 	if not ft.view:is_action_happening() then
-		ft.view.virtual:move_cursor_and_select_line(ft.bp.Buf:LinesNum() - 1)
-		ft.view.virtual:adjust()
+		ft.view.virtual:move_cursor_and_select_last_line()
 	end
 	return false
 end
@@ -230,6 +231,29 @@ function preCursorStart(bp)
 	return false
 end
 
+-- Shift + Up
+function preSelectUp(bp) -- bug the first line is nor selected entirly --todo
+	local ft = get_filetab_by_bp(bp)
+	if not ft then return end
+
+	if not ft.view:is_action_happening() then
+		ft.view:move_cursor_to_first_sibling()
+	end
+	return false
+end
+
+-- Shift + Down
+function preSelectDown(bp) --todo
+	local ft = get_filetab_by_bp(bp)
+	if not ft then return end
+
+	if not ft.view:is_action_happening() then
+		ft.view:move_cursor_to_last_sibling()
+	end
+	return false
+end
+
+
 -- Ctrl + Down Arrow
 function preCursorEnd(bp)
 	local ft = get_filetab_by_bp(bp)
@@ -246,8 +270,7 @@ function preWordRight(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
 
-	return ft.view:is_rename_at_cursor_happening() and
-		ft.view.virtual.cursor:get_can_move_right()
+	return ft.view:is_rename_at_cursor_happening() and ft.view.virtual.cursor:get_can_move_left()
 end
 
 -- Ctrl + Left Arrow
@@ -337,27 +360,8 @@ function onFindPrevious(bp)
 	--	selectline_if_tree(bp)
 end
 
--- Shift + Up
-function preSelectUp(bp) -- bug the first line is nor selected entirly --todo
-	if is_tab_selected(bp) then
-		if ft.view.Cursor:get_x() ~= 0 then
-			ft.view.Highlight:end_of_line()
-			ft.view:append_cursor_list(ft.view.Cursor:get_y())
-		end
-		ft.view.Highlight:up_line()
-		ft.view:append_cursor_list(ft.view.Cursor:get_y() - 1)
-	end
-end
 
--- Shift + Down
-function preSelectDown(bp) --todo
-	if ft.view.Cursor:get_x() ~= 0 then
-		ft.view.Highlight:current_line_undo()
-		ft.view.Highlight:down_line()
-		ft.view:append_cursor_list(ft.view.Cursor:get_y() - 1)
-	end
-	ft.view:append_cursor_list(ft.view.Cursor:get_y())
-end
+
 
 --TODO
 

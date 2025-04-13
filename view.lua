@@ -5,6 +5,7 @@ local Virtual = dofile(config.ConfigDir .. '/plug/filemanager/virtual.lua')
 local filepath = import('path/filepath')
 local golib_os = import('os')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
+local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
 
 
 local View = {}
@@ -102,11 +103,38 @@ View.expand_directory = execute_multiple_times(View.expand_directory)
 View.toggle_directory = execute_multiple_times(View.toggle_directory)
 View.collapse_directory = execute_multiple_times(View.collapse_directory)
 
+
 function View:move_cursor_to_owner()
 	local current_cursor_line = self.virtual.cursor:get_loc_y()
 	local owner = self:get_entry_at_line(current_cursor_line).owner
+	
+	micro.InfoBar():Error(#owner.entry_list.list)
+
 	if owner then
 		self:move_cursor_to_entry(owner)
+	end
+end
+
+function View:move_cursor_to_first_sibling()
+	local owner = self:get_entry_at_line(self.virtual.cursor:get_loc_y()).owner
+
+	if owner then
+		local owner_line = self:get_line_at_entry(owner)
+		self.virtual:move_cursor_and_select_line(owner_line + 1)
+	else
+		self.virtual:move_cursor_and_select_line(Settings.Const.previousDirectoryLine + 1)
+	end
+end
+
+function View:move_cursor_to_last_sibling()
+	local owner = self:get_entry_at_line(self.virtual.cursor:get_loc_y()).owner
+
+	if owner then
+		local owner_line = self:get_line_at_entry(owner)
+		local nested_entries = owner:get_entry_list():get_all_nested_entries()
+		self.virtual:move_cursor_and_select_line(owner_line + #nested_entries)
+	else
+		self.virtual:move_cursor_and_select_line(Settings.Const.previousDirectoryLine + 1)
 	end
 end
 
@@ -118,10 +146,9 @@ end
 function View:move_cursor_to_next_dir_outside()--todo has bug
 	local current_cursor_line = self.virtual.cursor:get_loc_y()
 	local owner = self:get_entry_at_line(current_cursor_line).owner
-
 	if owner then
-		local entry_list_len = owner:get_entry_list():len()
-		self.virtual:move_cursor_and_select_line(current_cursor_line + entry_list_len + 1)
+		local nested_entries = owner:get_entry_list():get_all_nested_entries()
+		self.virtual:move_cursor_and_select_line(current_cursor_line + #nested_entries - 1)
 	end
 end
 
@@ -131,6 +158,7 @@ function View:pre_rename_at_cursor()
 	self.virtual.cursor:select_file_name_no_extension()
 	self:set_read_only(false)
 end
+
 
 function View:rename_at_cursor()
 	local entry = self:get_entry_at_line(self.rename_at_cursor_line_num)
@@ -173,7 +201,8 @@ function View:get_line_at_entry(entry)
 
 	for i = 1, #all_entries do
 		if all_entries[i] == entry then
-			return i + 2
+			-- minus one because lines start on 0 
+			return i + Settings.Const.headerSize - 1
 		end
 	end
 	return nil

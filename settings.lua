@@ -7,6 +7,7 @@ Settings.Const = {
 	minWidth = 30,
 	previousDirectoryLine = 2,
 	defaultLineOnOpen = 2,
+	headerSize = 3
 }
 
 -- If the `micro/settings.json` file contains any of these options,
