@@ -1,24 +1,32 @@
 local micro = import('micro')
 local os = import('os')
+local filepath = import('path/filepath')
 local config = import('micro/config')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
 local icon_utils = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 local icons = icon_utils.Icons()
 local File = dofile(config.ConfigDir .. '/plug/filemanager/file.lua')
-local filepath = import('path/filepath')
+local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
+--local Entry = require('entry')
 
 
-local Directory = {}
+---@class Directory : Entry
+---@field children Entry[]|nil
+local Directory = setmetatable({}, { __index = Entry })
 Directory.__index = Directory
 
-function Directory:new(file_name, abs_path, parent)
-    local instance = setmetatable({}, Directory)
-    instance.file_name = file_name
-    instance.abs_path = abs_path
-    instance.icon = icons['dir']
-    instance.is_open = false 
-    instance.parent = parent or nil
-    instance.content = nil
+---@param name string
+---@param path string
+---@param parent Entry
+---@return Entry:Directory--todo
+function Directory:new(name, path, parent)
+	local entry = Entry:new(
+		name,
+		icons['dir'],
+		path,
+		parent
+	)
+ 	local instance = setmetatable(entry, Directory)
     instance.children = nil
     return instance
 end
@@ -38,7 +46,7 @@ end
 
 function Directory:get_content(offset)
 	if not self.content or true then
-	    local content = self.icon .. ' ' .. self.file_name
+	    local content = self.icon .. ' ' .. self.name
 	    if offset then
 	        content = string.rep(' ', 2 * offset) .. content
 	    end
@@ -52,11 +60,11 @@ end
 function Directory:get_children()
 	if not self.children then
 
-		local all_files, err = os.ReadDir(self.abs_path)
+		local all_files, err = os.ReadDir(self.path)
 
 		-- files will be nil if the directory is read-protected (no permissions)
 		if err then
-			micro.InfoBar():Error('Error scanning directory: ', self.abs_path, ' | ', err)
+			micro.InfoBar():Error('Error scanning directory: ', self.path, ' | ', err)
 			return nil
 		end
 
@@ -67,10 +75,10 @@ function Directory:get_children()
 
 			-- Logic to make sure all directories are appended first to entries table so they are shown first
 			if file:IsDir() then
-				local new_directory = self:new(file:Name(), filepath.Join(self.abs_path, file:Name()), self)
+				local new_directory = self:new(file:Name(), filepath.Join(self.path, file:Name()), self)
 	            table.insert(directories, new_directory)
 			else
-				local new_file = File:new(file:Name(), filepath.Join(self.abs_path, file:Name()), self)
+				local new_file = File:new(file:Name(), filepath.Join(self.path, file:Name()), self)
 	            table.insert(files, new_file)
 			end
 		end

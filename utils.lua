@@ -60,8 +60,8 @@ end
 
 
 -- Returns true/false if the file is a dotfile
-local function is_dotfile(file_name)
-	return string.sub(file_name, 1, 1) == '.'
+local function is_dotfile(entry_name)
+	return string.sub(entry_name, 1, 1) == '.'
 end
 
 -- This function is designed to identify the position of the first character 
