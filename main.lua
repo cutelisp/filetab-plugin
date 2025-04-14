@@ -6,6 +6,7 @@ local os = import('os')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
 local Filetab = dofile(config.ConfigDir .. '/plug/filemanager/filetab.lua')
 local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
+local Directory = dofile(config.ConfigDir .. '/plug/filemanager/directory.lua')
 
 
 local filetab_map = {}
@@ -85,7 +86,6 @@ end
 function onCursorDown(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
-
 	ft.view.virtual:select_line_on_cursor()
 end
 
@@ -97,7 +97,11 @@ function preCursorLeft(bp)--todo this is bugged if a file stars with an empty sp
 	if ft.view:is_rename_at_cursor_happening() then
 		return ft.view.virtual.cursor:get_can_move_left()
 	else
-		ft.view:collapse_directory()
+		local entry = ft.view:get_entry_at_line()
+
+		if entry:is_dir() then
+			ft.view:collapse_directory(entry)
+		end
 		return false
 	end
 end
@@ -110,7 +114,11 @@ function preCursorRight(bp)
 	if ft.view:is_rename_at_cursor_happening() then
 		return ft.view.virtual.cursor:get_can_move_right()
 	else
-		ft.view:expand_directory()
+		local entry = ft.view:get_entry_at_line()
+
+		if entry:is_dir() then
+			ft.view:expand_directory(entry)
+		end
 		return false
 	end
 end
@@ -127,7 +135,11 @@ function preInsertNewline(bp)
 	elseif view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
 		ft:load_back_directory()
 	else
-		view:toggle_directory()
+		local entry = ft.view:get_entry_at_cursor()
+	
+		if entry:is_dir() then
+			view:toggle_directory(entry)
+		end
 	end
 
 	return false
@@ -226,7 +238,7 @@ function preCursorStart(bp)
 	if not ft then return end
 
 	if not ft.view:is_action_happening() then
-		ft.view:move_cursor_to_owner()
+		ft.view:move_cursor_to_parent()
 	end
 	return false
 end
@@ -483,6 +495,7 @@ function is_action_on_any_tab(bp)
 end
 
 
+local os = import("os")
 
 function init()
 	-- Adds colors to the ".." and any dir's in the tree bp via syntax highlighting
@@ -491,8 +504,6 @@ function init()
 
 	Settings.load_default()
 
-	local current_dir = os.Getwd()
-	
 	config.MakeCommand('ft', toggle_filetab, config.NoComplete)
 
 	if Settings.get_option("openOnStart") then
