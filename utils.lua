@@ -49,6 +49,7 @@ local function get_appended_tables(table1, table2)
     for i = 1, #table2 do
         table1[#table1 + 1] = table2[i]
     end
+    return table1
 end
 
 -- Joins the target dir's leading path to the passed name
@@ -57,23 +58,6 @@ function dirname_and_join(path, join_name)
     return filepath.Join(leading_path, join_name)
 end
 
--- A check for if a path is a dir
-local function is_dir(path)
-	-- Used for checking if dir
-	local golib_os = import('os')
-	-- Returns a FileInfo on the current file/path
-	local file_info, stat_error = golib_os.Stat(path)
-	-- Wrap in nil check for file/dirs without read permissions
-	if file_info ~= nil then
-		-- Returns true/false if it's a dir
-		return file_info:IsDir()
-	else
-		-- Couldn't stat the file/dir, usually because no read permissions
-		micro.InfoBar():Error('Error checking if is dir: ', stat_error)
-		-- Nil since we can't read the path
-		return nil
-	end
-end
 
 -- Returns true/false if the file is a dotfile
 local function is_dotfile(file_name)
@@ -96,6 +80,7 @@ local function first_char_loc(str)
     return nil
 end
 
+
 -- Returns the postition of the last dot of the given string not considerating the first 
 local function get_dot_location(str)
 	local position = string.find(str, "%.[^%.]*$")
@@ -108,55 +93,10 @@ local function get_content(str)
     return string.sub(str, first_char_location)
 end
 
--- Returns the names of all files inside the given directory.
--- Checks if the file name should be returned based on include_dotfiles and include_ignored_files.
-local function get_files_names(directory, include_dotfiles, include_ignored_files)
-	local files, error_message = golib_ioutil.ReadDir(directory)
-	-- files will be nil if the directory is read-protected (no permissions)
-	if error_message then
-		return nil, error_message
-	end
-
-	local result = {}
-
-	-- Include all files
-	if include_dotfiles and include_ignored_files then
-		for i = 1, #files do
-			table.insert(result, files[i]:Name())
-		end
-		return result
-	end
-
-	local function is_meant_to_show(file_name)
-		if not include_dotfiles and is_dotfile(file_name) then
-			return false
-		elseif not include_ignored_files and is_ignored_file(file_name) then
-			return false
-		else
-			return true
-		end
-	end
-
-	-- Include all files but dotfiles/ignored_files
-	if not include_dotfiles or not include_ignored_files then
-		local file_name
-		for i = 1, #files do
-			file_name = files[i]:Name()
-			if is_meant_to_show(file_name) then
-				table.insert(result, file_name)
-			end
-		end
-		return result
-	end
-end
-
-
 return {
 	get_ignored_files = get_ignored_files,
 	get_appended_tables = get_appended_tables,
 	dirname_and_join = dirname_and_join,
-	is_dir = is_dir,
-	get_files_names = get_files_names,
 	is_dotfile = is_dotfile,
 	get_panes_quantity = get_panes_quantity,
 	first_char_loc = first_char_loc,
