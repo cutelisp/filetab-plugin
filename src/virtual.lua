@@ -1,7 +1,11 @@
-local micro = import('micro')
 local config = import('micro/config')
-local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local Preferences = dofile(config.ConfigDir .. '/plug/filemanager/preferences.lua')
+
+---@module "utils"
+local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
+---@module "info"
+local INFO = utils.import("info")
+---@module "preferences"
+local Preferences = utils.import("preferences")
 
 
 local Virtual = {}
@@ -187,6 +191,7 @@ function Virtual.Cursor:get_can_move_right()
 	local current_line_len = #self:get_line_text() - 3
     return self:get_loc_x() <= current_line_len
 end
+
 function Virtual.Cursor:get_can_move_left()
     return self:get_loc_x() > utils.first_char_loc(self:get_line_text())
 end

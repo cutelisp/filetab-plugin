@@ -6,16 +6,24 @@ local buffer = import('micro/buffer')
 local filepath = import('path/filepath')
 local str = import('strings')
 
-local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
+---@module "info"
+local INFO = dofile(config.ConfigDir .. '/plug/filetab/src/info.lua')
 
+local function import(filename)
+	return dofile(config.ConfigDir .. '/plug/' .. INFO.PLUGIN_NAME .. '/src/' .. filename .. '.lua')
+end
+
+---@module "icons"
+local icon = import("icons")
 
 function Icons()
-	return icon.Icons()
+	return icon.Icons()--todo
 end
 
 local function get_panes_quantity(tab)
 	return #tab.Panes
 end
+
 
 -- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
 -- aka this returns a list of gitignored files (but for whatever VCS is found)
@@ -103,5 +111,6 @@ return {
 	get_panes_quantity = get_panes_quantity,
 	first_char_loc = first_char_loc,
 	get_dot_location = get_dot_location, 
-	get_content = get_content
+	get_content = get_content,
+	import = import
 }

@@ -2,15 +2,17 @@ local config = import('micro/config')
 local micro = import('micro')
 local filepath = import('path/filepath')
 local buffer = import('micro/buffer')
----@module "view"
-local View = dofile(config.ConfigDir .. '/plug/filemanager/view.lua')
+
+---@module "utils"
+local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
 ---@module "directory"
-local Directory = dofile(config.ConfigDir .. '/plug/filemanager/directory.lua')
+local Directory = utils.import("directory")
+---@module "info"
+local INFO = utils.import("info")
 ---@module "settings"
-local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
-local INFO = dofile(config.ConfigDir .. '/plug/filemanager/info.lua')
----@module "preferences"
-local Preferences = dofile(config.ConfigDir .. '/plug/filemanager/preferences.lua')
+local Settings = utils.import("settings")
+---@module "view"
+local View = utils.import("view")
 
 
 local Filetab = {}

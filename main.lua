@@ -3,13 +3,16 @@ VERSION = "0.0.1"
 local micro = import('micro')
 local config = import('micro/config')
 local os = import('os')
-local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
+
+---@module "utils"
+local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
 ---@module "filetab"
-local Filetab = dofile(config.ConfigDir .. '/plug/filemanager/filetab.lua')
+local Filetab = utils.import("filetab")
 ---@module "preferences"
-local Preferences = dofile(config.ConfigDir .. '/plug/filemanager/preferences.lua')
+local Preferences = utils.import("preferences")
 ---@module "info"
-local INFO = dofile(config.ConfigDir .. '/plug/filemanager/info.lua')
+local INFO = utils.import("info")
+
 
 local filetab_map = {}
 
@@ -493,7 +496,6 @@ function preSpawnMultiCursor(bp)
 	return not is_action_on_any_tab(bp)
 end
 
-
 function is_action_on_any_tab(bp)
 	local ft = get_filetab_by_bp(bp)
 	return ft or true and false
@@ -509,8 +511,7 @@ function init()
 
 	local preferences = Preferences:new()
 	
-	micro.InfoBar():Error(config.RegisterCommonOption("filetab" , "sstt", "asdsda"))
-	micro.InfoBar():Error(config.GetGlobalOption("filetab" .. "." .. "sstt"))
+
 
 
 	config.MakeCommand('ft', toggle_filetab, config.NoComplete)

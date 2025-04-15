@@ -1,3 +1,4 @@
+---@enum
 Info = {
 	PLUGIN_NAME = "filetab",
 	MIN_WIDTH = 30,

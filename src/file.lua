@@ -1,11 +1,12 @@
-local micro = import('micro')
 local config = import('micro/config')
-local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local icon_utils = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
-local icons = icon_utils.Icons()
-local filepath = import('path/filepath')
+
+---@module "utils"
+local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
 ---@module "entry"
-local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
+local Entry = utils.import("entry")
+---@module "icons"
+local icon_utils = utils.import("icons")
+
 
 ---@class File : Entry
 local File = setmetatable({}, { __index = Entry })

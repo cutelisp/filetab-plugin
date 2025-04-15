@@ -1,14 +1,18 @@
 local buffer = import('micro/buffer')
 local micro = import('micro')
 local config = import('micro/config')
-local golib_os = import('os')--todo deprecated
-local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local Virtual = dofile(config.ConfigDir .. '/plug/filemanager/virtual.lua')
-local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
----@module "settings"
-local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
+local golib_os = import('os')
+
+---@module "utils"
+local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
+---@module "entry"
+local Entry = utils.import("entry")
 ---@module "info"
-local INFO = dofile(config.ConfigDir .. '/plug/filemanager/info.lua')
+local INFO = utils.import("info")
+---@module "settings"
+local Settings = utils.import("settings")
+---@module "virtual"
+local Virtual = utils.import("virtual")
 
 
 local View = {}

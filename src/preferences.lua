@@ -1,6 +1,9 @@
 local config = import('micro/config')
+
+---@module "utils"
+local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
 ---@module "info"
-local INFO = dofile(config.ConfigDir .. '/plug/filemanager/info.lua')
+local INFO = utils.import("info")
 
 
 ---@class Preferences

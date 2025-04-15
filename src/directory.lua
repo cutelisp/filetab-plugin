@@ -2,14 +2,19 @@ local micro = import('micro')
 local os = import('os')
 local filepath = import('path/filepath')
 local config = import('micro/config')
-local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local icon_utils = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
+
+---@module "utils"
+local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
+---@module "icons"
+local icon_utils = utils.import("icons")
 local icons = icon_utils.Icons()
-local File = dofile(config.ConfigDir .. '/plug/filemanager/file.lua')
+---@module "file"
+local File = utils.import("file")
 ---@module "entry"
-local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
+local Entry = utils.import("entry")
 ---@module "settings"
-local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
+local Settings = utils.import("settings")
+
 
 ---@class Directory : Entry
 ---@field children Entry[]?
@@ -23,6 +28,7 @@ Directory.__index = Directory
 ---@param show_dotfiles boolean
 ---@return Directory --todo
 function Directory:new(name, path, parent, show_dotfiles)
+
 	local entry = Entry:new(
 		name,
 		icons['dir'],
@@ -50,6 +56,7 @@ end
 
 function Directory:get_content(offset)
 	if not self.content or true then
+		
 	    local content = self.icon .. ' ' .. self.name
 	    if offset then
 	        content = string.rep(' ', 2 * offset) .. content
@@ -165,8 +172,5 @@ function Directory:set_is_open(status)--todo
     self.icon = status and icons['dir_open'] or icons['dir']
     self.is_open = status
 end
-
-
-
 
 return Directory
