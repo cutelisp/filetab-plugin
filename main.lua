@@ -4,10 +4,12 @@ local micro = import('micro')
 local config = import('micro/config')
 local os = import('os')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
+---@module "filetab"
 local Filetab = dofile(config.ConfigDir .. '/plug/filemanager/filetab.lua')
-local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
-local Directory = dofile(config.ConfigDir .. '/plug/filemanager/directory.lua')
-
+---@module "preferences"
+local Preferences = dofile(config.ConfigDir .. '/plug/filemanager/preferences.lua')
+---@module "info"
+local INFO = dofile(config.ConfigDir .. '/plug/filemanager/info.lua')
 
 local filetab_map = {}
 
@@ -35,7 +37,6 @@ local function toggle_filetab()
 	if not ft then
 		ft = Filetab:new(micro.CurPane(), os.Getwd())
 		table.insert(filetab_map, ft)
-
 	end
 	ft:toggle()
 	
@@ -57,7 +58,7 @@ function preCursorUp(bp)
 		return false
 	end
 
-	if ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+	if ft.view.virtual.cursor:get_loc_y() == INFO.LINE_PREVIOUS_DIRECTORY then
 		return false
 	end
 	return not ft.view:is_action_happening()
@@ -132,7 +133,7 @@ function preInsertNewline(bp)
 	if view:is_rename_at_cursor_happening() then
 		view:rename_at_cursor()
 		view:refresh()
-	elseif view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+	elseif view.virtual.cursor:get_loc_y() == INFO.LINE_PREVIOUS_DIRECTORY then
 		ft:load_back_directory()
 	else
 		local entry = ft.view:get_entry_at_cursor()
@@ -152,7 +153,7 @@ function preIndentSelection(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
 
-	if ft.view.virtual.cursor:get_loc_y() == Settings.Const.previousDirectoryLine then
+	if ft.view.virtual.cursor:get_loc_y() == INFO.LINE_PREVIOUS_DIRECTORY then
 		ft:load_back_directory()
 	else
 		ft:load(ft.view:get_entry_at_line(ft.view.virtual.cursor:get_line_num()).abs_path)
@@ -164,8 +165,12 @@ end
 function preBackspace(bp)
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
-
-    return ft.view:is_rename_at_cursor_happening() and ft.view.virtual.cursor:get_can_move_left()
+	if ft.view:is_rename_at_cursor_happening() and ft.view.virtual.cursor:get_can_move_left() then 
+		return true
+	else
+		ft:cycle_show_mode()
+		return false
+	end
 end
 
 -- PageUp
@@ -346,7 +351,7 @@ end
 
 -- MouseWheel Down
 function onScrollDown(bp)
-	bp:ScrollAdjust() --fix micro bug
+--	bp:ScrollAdjust() --fix micro bug
 end
 
 -- CtrlF
@@ -502,11 +507,15 @@ function init()
 	-- TODO: Change it to work with git, based on untracked/changed/added/whatever
 	config.AddRuntimeFile('filemanager', config.RTSyntax, 'syntax/filemanager.yaml')
 
-	Settings.load_default()
+	local preferences = Preferences:new()
+	
+	micro.InfoBar():Error(config.RegisterCommonOption("filetab" , "sstt", "asdsda"))
+	micro.InfoBar():Error(config.GetGlobalOption("filetab" .. "." .. "sstt"))
+
 
 	config.MakeCommand('ft', toggle_filetab, config.NoComplete)
 
-	if Settings.get_option("openOnStart") then
+	if preferences:get(Preferences.OPTIONS.OPEN_ON_START) then
 		toggle_filetab()
 	end
 end

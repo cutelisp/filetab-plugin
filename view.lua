@@ -3,16 +3,21 @@ local micro = import('micro')
 local config = import('micro/config')
 local golib_os = import('os')--todo deprecated
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
 local Virtual = dofile(config.ConfigDir .. '/plug/filemanager/virtual.lua')
+local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
+---@module "settings"
+local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
+---@module "info"
+local INFO = dofile(config.ConfigDir .. '/plug/filemanager/info.lua')
 
 
 local View = {}
 View.__index = View
 
-function View:new(bp)
+function View:new(bp, settings)
 	local instance = setmetatable({}, View)
 	instance.bp = bp
+	instance.settings = settings
 	instance.path = nil
 	instance.directory = nil
 	instance.virtual = Virtual:new(bp)
@@ -45,7 +50,7 @@ end
 
 function View:print_entries()
 	-- Delete de \n from last line, otherwise file tab will have a empty line at bottom
-	local entries = self.directory:get_children_content()
+	local entries = self.directory:get_children_content(self.settings:get(Settings.OPTIONS.SHOW_MODE))
 	entries[1] = "\n" .. entries[1]
 	entries[#entries] = entries[#entries]:gsub("\n$", "")
 	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 3), table.concat(entries))
@@ -121,7 +126,7 @@ function View:move_cursor_to_first_sibling()
 		self.virtual:adjust()
 	else
 		--If the setting to show the root folder is off parent_line will be nil --todo make a setting or change the name of this comment
-		self.virtual:move_cursor_and_select_line(Settings.Const.previousDirectoryLine + 1)
+		self.virtual:move_cursor_and_select_line(Info.LINE_PREVIOUS_DIRECTORY + 1)
 		self.virtual:adjust()
 	end
 end
@@ -195,7 +200,7 @@ end
 
 function View:get_entry_at_cursor()
 	local all_entries = self.directory:get_nested_children()
-	return all_entries[self.virtual.cursor:get_line_num() - Settings.Const.headerSize + 1]
+	return all_entries[self.virtual.cursor:get_line_num() - INFO.HEADER_SIZE + 1]
 end
 
 function View:get_read_only(value)
@@ -208,7 +213,7 @@ function View:get_line_at_entry(entry)
  	for i, each in ipairs(all_entries) do
         if each == entry then
         	-- minus one because lines start on 0 
-            return i + Settings.Const.headerSize - 1
+            return i + INFO.HEADER_SIZE - 1
         end
     end
 	return nil

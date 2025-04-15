@@ -4,9 +4,8 @@ local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
 local icon_utils = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 local icons = icon_utils.Icons()
 local filepath = import('path/filepath')
+---@module "entry"
 local Entry = dofile(config.ConfigDir .. '/plug/filemanager/entry.lua')
---local Entry = require('entry')
-
 
 ---@class File : Entry
 local File = setmetatable({}, { __index = Entry })
@@ -27,12 +26,6 @@ function File:new(name, path, parent)
     return instance
 end
 
-
---todo
-function File:is_dir()
- 	return false
-end 
-
 -- Builds and returns the string representation of the file
 -- The string is made up of an icon, the file name, and a slash if it's a directory
 function File:get_content(offset)
@@ -51,5 +44,11 @@ function File:set_file_name(name)
 	self.content = nil
 	self.name = name
 end
+
+---@overload fun() : boolean
+function File:is_dir()
+ 	return true
+end
+
 
 return File

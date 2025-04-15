@@ -1,7 +1,7 @@
 local micro = import('micro')
 local config = import('micro/config')
 local utils = dofile(config.ConfigDir .. '/plug/filemanager/utils.lua')
-local Settings = dofile(config.ConfigDir .. '/plug/filemanager/settings.lua')
+local Preferences = dofile(config.ConfigDir .. '/plug/filemanager/preferences.lua')
 
 
 local Virtual = {}
@@ -85,7 +85,7 @@ function Virtual:move_cursor_and_select_line(line_num)
 end	
 
 function Virtual:move_cursor_and_select_first_line()
-	self:move_cursor_and_select_line(Settings.Const.previousDirectoryLine + 1)
+	self:move_cursor_and_select_line(INFO.LINE_PREVIOUS_DIRECTORY + 1)
 	self:adjust()
 end	
 

@@ -4,6 +4,8 @@ local golib_ioutil = import('ioutil')
 local shell = import('micro/shell')
 local buffer = import('micro/buffer')
 local filepath = import('path/filepath')
+local str = import('strings')
+
 local icon = dofile(config.ConfigDir .. '/plug/filemanager/icon.lua')
 
 
@@ -60,8 +62,8 @@ end
 
 
 -- Returns true/false if the file is a dotfile
-local function is_dotfile(entry_name)
-	return string.sub(entry_name, 1, 1) == '.'
+local function is_dotfile(self, aaa)--todo why self?
+	return string.sub(aaa, 1, 1) == "."
 end
 
 -- This function is designed to identify the position of the first character 
