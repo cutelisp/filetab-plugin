@@ -1,8 +1,8 @@
 [
 	{
 		"Name": "filetab",
-		"Description": "File manager for Micro",
-		"Tags": ["filetab", "filemanager", "file", "manager"],
+		"Description": "File tab for Micro text editor",
+		"Tags": ["filetab", "filemanager", "file", "manager", "filetree"],
 		"Versions": [
 			{
 
