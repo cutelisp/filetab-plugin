@@ -18,25 +18,20 @@ local Settings = utils.import("settings")
 
 ---@class Directory : Entry
 ---@field children Entry[]?
----@field show_dotfiles boolean
 local Directory = setmetatable({}, { __index = Entry })
 Directory.__index = Directory
 
----@param name string
 ---@param path string
 ---@param parent Entry?
----@param show_dotfiles boolean
 ---@return Directory --todo
-function Directory:new(name, path, parent, show_dotfiles)
-
+function Directory:new(path, parent)
 	local entry = Entry:new(
-		name,
+		filepath.Base(path),
 		icons['dir'],
 		path,
 		parent
 	)
  	local instance = setmetatable(entry, Directory)
-  	instance.show_dotfiles = show_dotfiles
     instance.children = nil
     return instance
 end
@@ -87,7 +82,7 @@ function Directory:children_create(directory)
 					directory.parent = self
      				table.insert(directories, directory)
 				else
-					local new_directory = self:new(file_name, filepath.Join(self.path, file_name), self, self.show_dotfiles)
+					local new_directory = self:new(file_name, filepath.Join(self.path, file_name), self)
 		            table.insert(directories, new_directory)
 			 	end
 			else

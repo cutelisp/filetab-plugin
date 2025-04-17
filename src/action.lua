@@ -27,12 +27,9 @@ function Action:load_back_directory()
 		self.ft.view:load(view_root_directory.parent.path, view_root_directory.parent)
 	else
 		local one_back_directory_path = filepath.Dir(self.ft.view.path)
-		local one_back_directory_name = filepath.Base(one_back_directory_path)
 		local one_back_directory = Directory:new(
-			one_back_directory_name,
 			one_back_directory_path,
-		 	nil,
-			true--todo showdotfiles
+		 	nil
 		)
 		one_back_directory.children = one_back_directory:children_create(view_root_directory)
 		one_back_directory:set_is_open(true)

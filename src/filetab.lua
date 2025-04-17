@@ -46,9 +46,8 @@ end
 function Filetab:load(path)
 	self.current_path = path
 
-	local root = Directory:new(filepath.Base(path), path, nil, self.session_settings:get(Settings.OPTIONS.SHOW_DOTFILES))	
-	root.children = root:children_create()
-root.is_open = true
+	local root = Directory:new(path, nil)	
+	root:set_is_open(true)
 	self.view:refresh(self.current_path, root)
 	self.view.virtual:move_cursor_and_select_line(INFO.DEFAULT_LINE_ON_OPEN)
 end
