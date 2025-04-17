@@ -24,12 +24,32 @@ Settings.OPTIONS = {
 	SHOW_MODE = "show_mode",
 }
 
+---@enum show_modes
 Settings.SHOW_MODES = {
 	SHOW_ALL = "showAll",
 	SHOW_NONE = "showNone",
 	IGNORE_DOTFILES = "ignoreDotfiles",
 	IGNORE_GIT = "ignoreGit",
 }
+
+Settings.SHOW_MODES_FILTER = {
+     [Settings.SHOW_MODES.SHOW_ALL] = function()
+			return true
+     end,
+     [Settings.SHOW_MODES.SHOW_NONE] = function(entry)
+		if not entry:is_dotfile() then
+       		return true
+       	end
+     end,
+     [Settings.SHOW_MODES.IGNORE_DOTFILES] = function(entry)
+     		return not entry:is_dotfile()
+     end,
+     [Settings.SHOW_MODES.IGNORE_GIT] = function(entry)
+         if not entry:is_dotfile() then
+			return true
+         end
+     end,
+ }
 
 Settings.DEFAULT_OPTIONS = {
 	[Settings.OPTIONS.SCROLLBAR] = false,
@@ -64,9 +84,9 @@ function Settings:toggle(option)
 	self.bp.Buf:SetOptionNative(option, value)
 end
 
----@param option options
+---@param option sett_options|show_modes
 function Settings:get(option)
-	return self.options[option] 
+	return self.options[option]
 end
 
 ---@param bp any

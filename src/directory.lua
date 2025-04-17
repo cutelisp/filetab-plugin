@@ -46,7 +46,7 @@ function Directory:get_child(num)
 end
 
 function Directory:len(num)
- 	return #self.children
+ 	return self.children and #self.children or nil
 end
 
 ---@overload fun() : boolean
@@ -66,7 +66,7 @@ function Directory:get_content(offset)
  	return self.content
 end
 
-function Directory:children_create()
+function Directory:children_create(directory)
 	local all_files, err = os.ReadDir(self.path)
 
 	-- files will be nil if the directory is read-protected (no permissions)
@@ -81,16 +81,19 @@ function Directory:children_create()
 		file = all_files[i]
 		file_name = file:Name()
 
-		if self.show_dotfiles or not utils:is_dotfile(file_name) then
 			-- Logic to make sure all directories are appended first to entries table so they are shown first
 			if file:IsDir() then
-				local new_directory = self:new(file_name, filepath.Join(self.path, file_name), self, self.show_dotfiles)
-	            table.insert(directories, new_directory)
+				if directory and directory.name == file:Name() then 
+					directory.parent = self
+     				table.insert(directories, directory)
+				else
+					local new_directory = self:new(file_name, filepath.Join(self.path, file_name), self, self.show_dotfiles)
+		            table.insert(directories, new_directory)
+			 	end
 			else
 				local new_file = File:new(file_name, filepath.Join(self.path, file_name), self)
 	            table.insert(files, new_file)
 			end
-		end
 	end
 
     -- Append all file entries to directories entries (So they can be correctly sorted)
@@ -107,17 +110,18 @@ function Directory:get_children()
 end
 
 function Directory:get_nested_children()
-	local children, child, nested_children  = {}, nil, nil
-	for i = 1, self:len() do
-		child = self:get_child(i)
-		children[#children + 1] = child
+	local children, nested_children  = {}, nil
+
+	for _, child in ipairs(self:get_children()) do
+		table.insert(children, child)
 		if child:is_dir() and child.is_open then
 			nested_children = child:get_nested_children()
-			for z = 1, #nested_children do
-				children[#children + 1] = nested_children[z]
+			for _, nested_child in ipairs(nested_children) do
+				table.insert(children, nested_child)
 			end
 		end
 	end
+
 	return children
 end
 
@@ -140,22 +144,20 @@ Directory.show_mode_switch_case = {
      end,
  }
 
+
 -- Returns the content of all nested entries of self entry_list
-function Directory:get_children_content(show_mode, offset)
+function Directory:get_children_content(show_mode_filter, offset)
 	if self.content == nil or true then --todo
-		local lines, child, nested_children, offset = {}, nil, nil, offset or 0
-		for i = 1, self:len() do
-			child = self:get_child(i)
+		local lines, nested_children = {}, nil
 
-			local fun_is_entry_meant_to_show = Directory.show_mode_switch_case[show_mode]
-			if fun_is_entry_meant_to_show(child) then 
-				lines[#lines + 1] = child:get_content(offset) .. "\n"
-   			end 
-
-			if child:is_dir() and child.is_open then
-				nested_children = child:get_children_content(show_dotfiles, offset + 1)
-				for z = 1, #nested_children do
-					lines[#lines + 1] = nested_children[z]
+		for _, child in ipairs(self:get_children()) do
+			if show_mode_filter(child) then 
+				table.insert(lines,  child:get_content(offset) .. "\n")
+				if child:is_dir() and child.is_open then
+					nested_children = child:get_children_content(show_mode_filter, offset + 1)
+					for z = 1, #nested_children do
+						lines[#lines + 1] = nested_children[z]
+					end
 				end
 			end
 		end

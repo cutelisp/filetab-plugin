@@ -9,12 +9,21 @@ local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
 local Entry = utils.import("entry")
 ---@module "info"
 local INFO = utils.import("info")
+---@module "preferences"
+local Preferences = utils.import("preferences")
 ---@module "settings"
 local Settings = utils.import("settings")
 ---@module "virtual"
 local Virtual = utils.import("virtual")
 
 
+---@class View
+---@field bp bp 	
+---@field settings Settings
+---@field path string?
+---@field directory any
+---@field virtual Virtual
+---@field rename_at_cursor_line_num number?
 local View = {}
 View.__index = View
 
@@ -23,23 +32,49 @@ function View:new(bp, settings)
 	instance.bp = bp
 	instance.settings = settings
 	instance.path = nil
-	instance.directory = nil
+	instance.root_directory = nil 
 	instance.virtual = Virtual:new(bp)
-	instance.rename_at_cursor_line_num = nil
 	instance.rename_at_cursor_line_num = nil
 	return instance
 end
 
-function View:refresh(path, directory)
-	if path then self.path = path end
-	if directory then self.directory = directory end
+function View:load(path, directory)
+	self.path = path
+	self.root_directory = directory
+
+	self:clear()
+	self:print_header()
+	if self.root_directory.is_open then
+		self:print_entries()
+	end
+	self.virtual:move_cursor_and_select_line(INFO.DEFAULT_LINE_ON_OPEN)
+	self.bp:Tab():Resize() -- Resizes all views after messing with ours 	-- todo idk wts this
+end
+
+function View:refreshtwo(path, directory)
 
 	local line_num = self.virtual.cursor:get_line_num()
 	self:clear()
 	self:print_header()
-	if self.directory:len() > 0 then 
+	if self.root_directory.is_open then 
 		self:print_entries()
 	end
+--	self.virtual:refresh()
+	self.virtual:move_cursor_and_select_line(line_num)
+	self.bp:Tab():Resize() -- Resizes all views after messing with ours 	-- todo idk wts this
+end
+
+function View:refresh(path, directory)
+	if path then self.path = path end
+	if directory then self.root_directory = directory end
+
+	local line_num = self.virtual.cursor:get_line_num()
+	self:clear()
+	self:print_header()
+	if self.root_directory.is_open then 
+		self:print_entries()
+
+		end
 	self.virtual:refresh()
 	self.virtual:move_cursor_and_select_line(line_num)
 	self.bp:Tab():Resize() -- Resizes all views after messing with ours 	-- todo idk wts this
@@ -49,15 +84,25 @@ end
 function View:print_header() --todo
 	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 0), self.path .. '\n')
 	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 1), string.rep('─', self.bp:GetView().Width) .. '\n') -- TODO this \n is probably wrong
-	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 2), '..')
+	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 2), '..\n')
+	if Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY) then 
+		self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 3),self.root_directory:get_content() .. "\n")
+	end 
 end
 
 function View:print_entries()
-	-- Delete de \n from last line, otherwise file tab will have a empty line at bottom
-	local entries = self.directory:get_children_content(self.settings:get(Settings.OPTIONS.SHOW_MODE))
-	entries[1] = "\n" .. entries[1]
+	local show_mode = self.settings:get(Settings.OPTIONS.SHOW_MODE)
+	local show_root_directory = Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY)
+	
+	local entries = self.root_directory:get_children_content(Settings.SHOW_MODES_FILTER[show_mode], show_root_directory and 1 or 0)
+	-- Delete the last \n, otherwise it will create a blank line on bottom 
 	entries[#entries] = entries[#entries]:gsub("\n$", "")
-	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 3), table.concat(entries))
+
+	if show_root_directory then 
+		self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 4), table.concat(entries))
+	else
+		self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 3), table.concat(entries))
+	end 
 end
 
 -- Delete everything in the view/buffer
@@ -68,14 +113,14 @@ end
 function View:collapse_directory(directory)
 	if directory.is_open then
 		directory:set_is_open(false)
-		self:refresh()
+		self:refreshtwo()
 	end
 end
 
 function View:expand_directory(directory)
 	if not directory.is_open then
 		directory:set_is_open(true)
-		self:refresh()
+		self:refreshtwo()
 	end
 end
 
@@ -124,28 +169,17 @@ end
 function View:move_cursor_to_first_sibling()
 	local parent = self:get_entry_at_cursor().parent
 	local parent_line = self:get_line_at_entry(parent)
-	
-	if parent_line then 
-		self.virtual:move_cursor_and_select_line(parent_line + 1)
-		self.virtual:adjust()
-	else
-		--If the setting to show the root folder is off parent_line will be nil --todo make a setting or change the name of this comment
-		self.virtual:move_cursor_and_select_line(Info.LINE_PREVIOUS_DIRECTORY + 1)
-		self.virtual:adjust()
-	end
+
+	self.virtual:move_cursor_and_select_line(parent_line + 1)
+--	self.virtual:adjust() --todo make the adjust only ata certan range
 end
 
 function View:move_cursor_to_last_sibling()
 	local parent = self:get_entry_at_cursor().parent
 	local parent_line = self:get_line_at_entry(parent)
 
-	if parent_line then
-		self.virtual:move_cursor_and_select_line(parent_line + parent:len())
-		self.virtual:adjust()
-	else
-		--If the setting to show the root folder is off parent_line will be nil --todo make a setting or change the name of this comment
-		self.virtual:move_cursor_and_select_last_line()
-	end
+	self.virtual:move_cursor_and_select_line(parent_line + parent:len())
+	self.virtual:adjust() --todo make the adjust only ata certan range
 end
 
 function View:move_cursor_to_entry(entry)
@@ -197,14 +231,17 @@ end
 -- This function consolidates all the displayed entries into a single array, ensuring that each
 -- displayed entry corresponds to its respective line with an offset of 2 due to the header.
 function View:get_entry_at_line(line_number)--todo check if its being claled with ant wo line:number
-	local all_entries = self.directory:get_nested_children()
+	if Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY) and
+		line_number == INFO.ROOT_DIRECTORY_LINE then
+		return self.root_directory
+	end
+	local all_entries = self.root_directory:get_nested_children()
 	local ln = line_number or self.virtual.cursor:get_line_num()
-	return all_entries[ln - 2]
+	return all_entries[ln - INFO.HEADER_SIZE + 1]
 end
 
 function View:get_entry_at_cursor()
-	local all_entries = self.directory:get_nested_children()
-	return all_entries[self.virtual.cursor:get_line_num() - INFO.HEADER_SIZE + 1]
+	return self:get_entry_at_line(self.virtual.cursor:get_line_num())
 end
 
 function View:get_read_only(value)
@@ -212,8 +249,12 @@ function View:get_read_only(value)
 end
 
 function View:get_line_at_entry(entry)
-	local all_entries = self.directory:get_nested_children()
-
+	local all_entries = self.root_directory:get_nested_children()
+	
+	if Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY) and
+		entry == self.root_directory then
+		return INFO.ROOT_DIRECTORY_LINE
+	end
  	for i, each in ipairs(all_entries) do
         if each == entry then
         	-- minus one because lines start on 0 
@@ -225,6 +266,10 @@ end
 
 function View:set_read_only(value)
 	self.bp.Buf.Type.Readonly = value
+end
+
+function View:get_root_directory()
+	return self.root_directory
 end
 
 return View

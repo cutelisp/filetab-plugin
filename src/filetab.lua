@@ -5,6 +5,8 @@ local buffer = import('micro/buffer')
 
 ---@module "utils"
 local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
+---@module "action"
+local Action = utils.import("action")
 ---@module "directory"
 local Directory = utils.import("directory")
 ---@module "info"
@@ -14,10 +16,20 @@ local Settings = utils.import("settings")
 ---@module "view"
 local View = utils.import("view")
 
-
+---@class Filetab
+---@field is_selected boolean
+---@field bp any
+---@field current_path string
+---@field session_settings Settings	
+---@field action Action	
+---@field view View
 local Filetab = {}
 Filetab.__index = Filetab
 
+---comment
+---@param bp any
+---@param current_path any
+---@return Filetab
 function Filetab:new(bp, current_path)
 	local instance = setmetatable({}, Filetab)
 	instance.is_selected = true
@@ -25,8 +37,8 @@ function Filetab:new(bp, current_path)
 	instance.current_path = current_path
 	instance.is_open = false
 	instance.session_settings = Settings:new(bp)
+	instance.action = Action:new(instance)
 	instance.view = View:new(bp, instance.session_settings)
-	instance.a = true
 	return instance
 end
 
@@ -36,39 +48,12 @@ function Filetab:load(path)
 
 	local root = Directory:new(filepath.Base(path), path, nil, self.session_settings:get(Settings.OPTIONS.SHOW_DOTFILES))	
 	root.children = root:children_create()
-
+root.is_open = true
 	self.view:refresh(self.current_path, root)
 	self.view.virtual:move_cursor_and_select_line(INFO.DEFAULT_LINE_ON_OPEN)
 end
 
--- (Tries to) go load one "step" from the current directory
-function Filetab:load_back_directory()
-	local current_path = self.current_path
-	local one_back_directory = filepath.Dir(current_path)
-	-- Try opening, assuming they aren't at "root", by checking if it matches last dir
-	if one_back_directory ~= current_path then
-		self:load(one_back_directory)
-	end
-end
 
-function Filetab:toggle_scrollbar()
-	self.session_settings:toggle(Settings.OPTIONS.SCROLLBAR)
-end
-
-function Filetab:toggle_show_dotfiles()
-	self.session_settings:toggle(Settings.OPTIONS.SHOW_DOTFILES)
-end
-
-function Filetab:cycle_show_mode()
-	if self.a then 
-		self.session_settings:set(Settings.OPTIONS.SHOW_MODE, Settings.SHOW_MODES.IGNORE_DOTFILES)
-		self.a = false
-	else
-		self.session_settings:set(Settings.OPTIONS.SHOW_MODE, Settings.SHOW_MODES.SHOW_ALL)
-		self.a = true
-	end
-	self.view:refresh()
-end
 
 -- Set the various display settings, but only on our view (by using SetOptionNative instead of SetOption)
 function Filetab:setup_settings()

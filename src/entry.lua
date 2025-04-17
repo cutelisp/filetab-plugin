@@ -16,9 +16,8 @@ Entry.__index = Entry
 --- @return Entry
 function Entry:new(name, icon, path, parent)
     local instance = setmetatable({}, Entry)
-    instance.name = name
+    instance.name = name --todo extract here the name instead ofoutside
     instance.icon = icon
-
     instance.path = path
     instance.parent = parent
     instance.content = nil

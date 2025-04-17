@@ -8,6 +8,11 @@ local INFO = utils.import("info")
 local Preferences = utils.import("preferences")
 
 
+---@class Virtual
+---@field bp any 	
+---@field cursor Cursor
+---@field selected_lines []number
+---@field last_line_interact number?
 local Virtual = {}
 Virtual.__index = Virtual
 
@@ -107,6 +112,10 @@ function Virtual:adjust()
 	self.bp:Center()
 end
 
+---@class Cursor
+---@field bp any 	
+---@field cursor_loc_tmp any
+---@field last_click_loc any
 Virtual.Cursor = {}
 
 function Virtual.Cursor:new(bp)
