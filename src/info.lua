@@ -7,6 +7,8 @@ local Preferences = dofile(config.ConfigDir .. '/plug/filetab/src/preferences.lu
 ---@enum
 Info = {
 	PLUGIN_NAME = "filetab",
+	ICON_DIRECTORY_CLOSED = " ",
+	ICON_DIRECTORY_OPEN = " ",
 	MIN_WIDTH = 30,
 	LINE_PREVIOUS_DIRECTORY = 2,
 	DEFAULT_LINE_ON_OPEN = 3,

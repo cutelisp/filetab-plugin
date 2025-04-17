@@ -6,11 +6,13 @@ local Preferences = {}
 Preferences.OPTIONS = {
 	OPEN_ON_START = "openOnStart",
 	SHOW_ROOT_DIRECTORY = "showRootDirectory",
+	SHOW_ARROWS = "showArrows",
 }
 
 Preferences.DEFAULT_OPTIONS = {
 	[Preferences.OPTIONS.OPEN_ON_START] = true,
 	[Preferences.OPTIONS.SHOW_ROOT_DIRECTORY] = true,
+	[Preferences.OPTIONS.SHOW_ARROWS] = true
 }
 
 ---@param option pre_options

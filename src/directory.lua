@@ -8,12 +8,16 @@ local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
 ---@module "icons"
 local icon_utils = utils.import("icons")
 local icons = icon_utils.Icons()
+---@module "info"
+local INFO = utils.import("info")
 ---@module "file"
 local File = utils.import("file")
 ---@module "entry"
 local Entry = utils.import("entry")
 ---@module "settings"
 local Settings = utils.import("settings")
+---@module "preferences"
+local Preferences = utils.import("preferences")
 
 
 ---@class Directory : Entry
@@ -44,6 +48,10 @@ function Directory:len(num)
  	return self.children and #self.children or nil
 end
 
+function Directory:len_nested()
+ 	return #self:get_nested_children()
+end
+
 ---@overload fun() : boolean
 function Directory:is_dir()
  	return true
@@ -51,8 +59,9 @@ end
 
 function Directory:get_content(offset)
 	if not self.content or true then
+		local arrow_icon = Preferences:get(Preferences.OPTIONS.SHOW_ARROWS) and (self.is_open and INFO.ICON_DIRECTORY_OPEN or INFO.ICON_DIRECTORY_CLOSED) or ""
+		local content = arrow_icon .. self.icon .. self.name
 		
-	    local content = self.icon .. ' ' .. self.name
 	    if offset then
 	        content = string.rep(' ', 2 * offset) .. content
 	    end
@@ -82,7 +91,7 @@ function Directory:children_create(directory)
 					directory.parent = self
      				table.insert(directories, directory)
 				else
-					local new_directory = self:new(file_name, filepath.Join(self.path, file_name), self)
+					local new_directory = self:new(filepath.Join(self.path, file_name), self)
 		            table.insert(directories, new_directory)
 			 	end
 			else

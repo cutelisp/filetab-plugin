@@ -73,8 +73,8 @@ function View:refresh(path, directory)
 	self:print_header()
 	if self.root_directory.is_open then 
 		self:print_entries()
+	end
 
-		end
 	self.virtual:refresh()
 	self.virtual:move_cursor_and_select_line(line_num)
 	self.bp:Tab():Resize() -- Resizes all views after messing with ours 	-- todo idk wts this
@@ -174,11 +174,12 @@ function View:move_cursor_to_first_sibling()
 --	self.virtual:adjust() --todo make the adjust only ata certan range
 end
 
+
 function View:move_cursor_to_last_sibling()
 	local parent = self:get_entry_at_cursor().parent
 	local parent_line = self:get_line_at_entry(parent)
-
-	self.virtual:move_cursor_and_select_line(parent_line + parent:len())
+	
+	self.virtual:move_cursor_and_select_line(parent_line + parent:len_nested())
 	self.virtual:adjust() --todo make the adjust only ata certan range
 end
 
