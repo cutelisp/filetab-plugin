@@ -48,7 +48,7 @@ end
 
 ---@overload fun() : boolean
 function File:is_dir()
- 	return true
+ 	return false
 end
 
 
