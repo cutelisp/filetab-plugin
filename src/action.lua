@@ -37,6 +37,39 @@ function Action:load_back_directory()
 	end
 end
 
+function Action:collapse_directory(directory)
+	if directory.is_open then
+		directory:set_is_open(false)
+		self.ft.view:refreshtwo()
+	end
+end
+
+function Action:expand_directory(directory)
+	if not directory.is_open then
+		directory:set_is_open(true)
+		self.ft.view:refreshtwo()
+	end
+end
+
+function Action:toggle_directory(directory)
+	if directory.is_open then
+		self:collapse_directory(directory)
+	else
+		self:expand_directory(directory)
+	end
+end
+
+local function at_cursor(original_function)
+    return function(self)
+    	local directory = self.ft.view:get_entry_at_cursor()
+        return original_function(self, directory)
+    end
+end
+
+Action.collapse_directory_at_cursor = at_cursor(Action.collapse_directory)
+Action.expand_directory_at_cursor = at_cursor(Action.expand_directory)
+Action.toggle_directory_at_cursor = at_cursor(Action.toggle_directory)
+
 function Action:cycle_show_mode()
     local current_mode = self.ft.session_settings:get(Settings.OPTIONS.SHOW_MODE)
     local found_current_mode, next_show_mode = false, nil

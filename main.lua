@@ -6,7 +6,7 @@ local os = import('os')
 
 ---@module "utils"
 local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
----@module "filetab"
+---@module "src/filetab"
 local Filetab = utils.import("filetab")
 ---@module "preferences"
 local Preferences = utils.import("preferences")
@@ -326,6 +326,8 @@ end
 
 -- Alt + Left Arrow
 function preStartOfTextToggle(bp)
+	print(tostring(bp.DoubleClick) .. tostring(bp.TripleClick))
+
 	local ft = get_filetab_by_bp(bp)
 	if not ft then return end
 	
@@ -342,6 +344,18 @@ function onMousePress(bp)
 	if not ft then return end
 
 	ft.view.virtual:click_event()
+	
+	local entry = ft.view:get_entry_at_cursor()
+
+	if entry:is_dir() then 
+		if bp.DoubleClick then 
+			ft.action:toggle_directory(entry)
+		end
+	else
+	end
+		
+	
+
 end
 
 --Left Click Drag
@@ -509,14 +523,13 @@ function init()
 	-- TODO: Change it to work with git, based on untracked/changed/added/whatever
 	config.AddRuntimeFile('filemanager', config.RTSyntax, 'syntax/filemanager.yaml')
 
-	local preferences = Preferences:new()
 	
 
 
 
 	config.MakeCommand('ft', toggle_filetab, config.NoComplete)
 
-	if preferences:get(Preferences.OPTIONS.OPEN_ON_START) then
+	if Preferences:get(Preferences.OPTIONS.OPEN_ON_START) then
 		toggle_filetab()
 	end
 end

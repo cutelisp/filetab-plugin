@@ -225,6 +225,10 @@ function Virtual.Cursor:set_loc(loc)
     self.bp.Cursor.Loc = loc
 end
 
+function Virtual.Cursor:is_on_header()
+	return self:get_line_num() <= 4
+end
+
 function Virtual.Cursor:set_loc_x(loc_x)
     self.bp.Cursor.Loc.X = loc_x
 end
