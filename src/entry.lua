@@ -34,6 +34,10 @@ function Entry:is_dotfile()
 	return self.is_dotfile_cache
 end
 
+function Entry:is_git_ignored()
+	local children_ignored = self.parent:get_children_git_ignored()
+	return children_ignored[self.name]
+end
 
 -- Abstract function
 function Entry:is_dir() end

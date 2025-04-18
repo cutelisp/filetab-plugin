@@ -27,28 +27,26 @@ Settings.OPTIONS = {
 ---@enum show_modes
 Settings.SHOW_MODES = {
 	SHOW_ALL = "showAll",
-	SHOW_NONE = "showNone",
 	IGNORE_DOTFILES = "ignoreDotfiles",
 	IGNORE_GIT = "ignoreGit",
+	IGNORE_ALL = "ignoreAll",
 }
 
 Settings.SHOW_MODES_FILTER = {
      [Settings.SHOW_MODES.SHOW_ALL] = function()
-			return true
-     end,
-     [Settings.SHOW_MODES.SHOW_NONE] = function(entry)
-		if not entry:is_dotfile() then
-       		return true
-       	end
+		return true
      end,
      [Settings.SHOW_MODES.IGNORE_DOTFILES] = function(entry)
-     		return not entry:is_dotfile()
+        if not entry:is_dotfile() then
+        	return true
+        end
      end,
      [Settings.SHOW_MODES.IGNORE_GIT] = function(entry)
-         if not entry:is_dotfile() then
-			return true
-         end
+     	return not entry:is_git_ignored()
      end,
+     [Settings.SHOW_MODES.IGNORE_ALL] = function(entry)
+       	return not entry:is_dotfile() and not entry:is_git_ignored()
+    end,
  }
 
 Settings.DEFAULT_OPTIONS = {
@@ -74,6 +72,17 @@ end
 ---@param value any
 function Settings:set(option, value)
 	self.options[option] = value
+	self.bp.Buf:SetOptionNative(option, value)
+end
+
+---@param option sett_options
+---@param value any
+function Settings:test(self, option, value)
+	--todo
+	local aa = Settings.test
+	self.ft:aa(Settings.OPTIONS.SCROLLBAR, true)
+	
+	self.bp.Buf.Settings[option] = value
 	self.bp.Buf:SetOptionNative(option, value)
 end
 

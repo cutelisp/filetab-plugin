@@ -1,5 +1,6 @@
 local micro = import('micro')
 local os = import('os')
+local shell = import('micro/shell')
 local filepath = import('path/filepath')
 local config = import('micro/config')
 
@@ -37,6 +38,7 @@ function Directory:new(path, parent)
 	)
  	local instance = setmetatable(entry, Directory)
     instance.children = nil
+    instance.children_ignored = nil
     return instance
 end
 
@@ -129,25 +131,23 @@ function Directory:get_nested_children()
 	return children
 end
 
-Directory.show_mode_switch_case = {
-     [Settings.SHOW_MODES.SHOW_ALL] = function()
-			return true 
-     end,
-     [Settings.SHOW_MODES.SHOW_NONE] = function(entry)
-			if not entry:is_dotfile() then
-       				return true
-       	end
-     end,
-     [Settings.SHOW_MODES.IGNORE_DOTFILES] = function(entry)
-     	return not entry:is_dotfile()
-     end,
-     [Settings.SHOW_MODES.IGNORE_GIT] = function(entry)
-         if not entry:is_dotfile() then
-				return true
-         end
-     end,
- }
+function Directory:get_nested_children_test(show_mode_filter)
+	local children, nested_children  = {}, nil
 
+	for _, child in ipairs(self:get_children()) do
+		if show_mode_filter(child) then 
+			table.insert(children, child)
+			if child:is_dir() and child.is_open then
+				nested_children = child:get_nested_children()
+				for _, nested_child in ipairs(nested_children) do
+					table.insert(children, nested_child)
+				end
+			end
+		end
+	end
+
+	return children
+end
 
 -- Returns the content of all nested entries of self entry_list
 function Directory:get_children_content(show_mode_filter, offset)
@@ -178,5 +178,30 @@ function Directory:set_is_open(status)--todo
     self.icon = status and icons['dir_open'] or icons['dir']
     self.is_open = status
 end
+
+
+-- Returns a list of all files/directories inside the current directory that are ignored by the GIT system 
+function Directory:get_children_git_ignored()
+	if not self.children_ignored then
+		-- True/false if the target dir returns a non-fatal error when checked with 'git status'
+		local function has_git()
+			local git_rp_results = shell.RunCommand('git  -C ' .. self.path .. ' rev-parse --is-inside-work-tree')
+			return git_rp_results:match('^true%s*$')
+		end
+
+		local entry_list = {}
+
+		if has_git() then
+			local ignored_entries, err =
+			shell.RunCommand("git -C " .. self.path .." ls-files " .. self.path .. " --ignored --exclude-standard --others --directory")
+			for entry_name in string.gmatch(ignored_entries, '([^\n]+)') do
+				entry_list[entry_name] = true
+			end
+		end
+		self.children_ignored = entry_list
+	end
+	return self.children_ignored
+end
+
 
 return Directory
