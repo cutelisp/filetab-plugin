@@ -101,7 +101,7 @@ function preCursorLeft(bp)--todo this is bugged if a file stars with an empty sp
 	if ft.view:is_rename_at_cursor_happening() then
 		return ft.view.virtual.cursor:get_can_move_left()
 	else
-		local entry = ft.view:get_entry_at_line()
+		local entry = ft.view:get_entry_at_cursor()
 
 		if entry:is_dir() then
 			ft.view:collapse_directory(entry)
@@ -118,7 +118,7 @@ function preCursorRight(bp)
 	if ft.view:is_rename_at_cursor_happening() then
 		return ft.view.virtual.cursor:get_can_move_right()
 	else
-		local entry = ft.view:get_entry_at_line()
+		local entry = ft.view:get_entry_at_cursor()
 
 		if entry:is_dir() then
 			ft.view:expand_directory(entry)
@@ -137,7 +137,7 @@ function preInsertNewline(bp)
 		view:rename_at_cursor()
 		view:refresh()
 	elseif view.virtual.cursor:get_loc_y() == INFO.LINE_PREVIOUS_DIRECTORY then
-		ft:load_back_directory()
+		ft.action:load_back_directory()
 	else
 		local entry = ft.view:get_entry_at_cursor()
 	
@@ -159,7 +159,7 @@ function preIndentSelection(bp)
 	if ft.view.virtual.cursor:get_loc_y() == INFO.LINE_PREVIOUS_DIRECTORY then
 		ft:load_back_directory()
 	else
-		ft:load(ft.view:get_entry_at_line(ft.view.virtual.cursor:get_line_num()).abs_path)
+		ft:load(ft.view:get_entry_at_cursor().path)
 	end
 	return false
 end
@@ -171,7 +171,8 @@ function preBackspace(bp)
 	if ft.view:is_rename_at_cursor_happening() and ft.view.virtual.cursor:get_can_move_left() then 
 		return true
 	else
-		ft:cycle_show_mode()
+		ft.action:cycle_show_mode()	
+	--ft:toggle_scrollbar()
 		return false
 	end
 end

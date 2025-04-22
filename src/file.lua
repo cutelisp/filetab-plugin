@@ -6,7 +6,8 @@ local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
 local Entry = utils.import("entry")
 ---@module "icons"
 local icon_utils = utils.import("icons")
-
+---@module "preferences"
+local Preferences = utils.import("preferences")
 
 ---@class File : Entry
 local File = setmetatable({}, { __index = Entry })
@@ -31,7 +32,12 @@ end
 -- The string is made up of an icon, the file name, and a slash if it's a directory
 function File:get_content(offset)
 	if not self.content or true then
-	    local content = self.icon .. self.name
+  		local content = self.icon .. self.name
+
+		if Preferences:get(Preferences.OPTIONS.SHOW_ARROWS) then
+			content = "  " .. content
+		end
+
 	    if offset then
       		content = string.rep(' ', 2 * offset) .. content
 	    end

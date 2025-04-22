@@ -61,7 +61,15 @@ end
 
 function Directory:get_content(offset)
 	if not self.content or true then
-		local arrow_icon = Preferences:get(Preferences.OPTIONS.SHOW_ARROWS) and (self.is_open and INFO.ICON_DIRECTORY_OPEN or INFO.ICON_DIRECTORY_CLOSED) or ""
+		local arrow_icon = ""
+		if Preferences:get(Preferences.OPTIONS.SHOW_ARROWS) then
+		    if self.is_open then
+		        arrow_icon = INFO.ICON_DIRECTORY_OPEN
+		    else
+		        arrow_icon = INFO.ICON_DIRECTORY_CLOSED
+		    end
+		end
+
 		local content = arrow_icon .. self.icon .. self.name
 		
 	    if offset then
@@ -131,43 +139,33 @@ function Directory:get_nested_children()
 	return children
 end
 
-function Directory:get_nested_children_test(show_mode_filter)
-	local children, nested_children  = {}, nil
-
-	for _, child in ipairs(self:get_children()) do
-		if show_mode_filter(child) then 
-			table.insert(children, child)
-			if child:is_dir() and child.is_open then
-				nested_children = child:get_nested_children()
-				for _, nested_child in ipairs(nested_children) do
-					table.insert(children, nested_child)
-				end
-			end
-		end
-	end
-
-	return children
-end
-
 -- Returns the content of all nested entries of self entry_list
 function Directory:get_children_content(show_mode_filter, offset)
 	if self.content == nil or true then --todo
 		local lines, nested_children = {}, nil
 
+
+		local real = {}
+		local nested_real = {}
 		for _, child in ipairs(self:get_children()) do
 			if show_mode_filter(child) then 
-				table.insert(lines,  child:get_content(offset) .. "\n")
+				table.insert(lines, child:get_content(offset) .. "\n")
+				table.insert(real, child)
 				if child:is_dir() and child.is_open then
-					nested_children = child:get_children_content(show_mode_filter, offset + 1)
-					for z = 1, #nested_children do
-						lines[#lines + 1] = nested_children[z]
+					nested_children, nested_real = child:get_children_content(show_mode_filter, offset + 1)
+					for _, nested_child in ipairs(nested_children) do
+						table.insert(lines,  nested_child)
+					end
+					for _, aa in ipairs(nested_real) do
+						table.insert(real,  aa)
 					end
 				end
 			end
 		end
 		self.content = lines
+		self.real = real
 	end
-	return self.content
+	return self.content, self.real
 end
 
 function Directory:set_is_open(status)--todo

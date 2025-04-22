@@ -24,7 +24,7 @@ function Action:load_back_directory()
 	local view_root_directory  = self.ft.view:get_root_directory()
 	
 	if view_root_directory.parent then
-		self.ft.view:load(view_root_directory.parent.path, view_root_directory.parent)
+		self.ft.view:load(view_root_directory.parent)
 	else
 		local one_back_directory_path = filepath.Dir(self.ft.view.path)
 		local one_back_directory = Directory:new(
@@ -33,7 +33,7 @@ function Action:load_back_directory()
 		)
 		one_back_directory.children = one_back_directory:children_create(view_root_directory)
 		one_back_directory:set_is_open(true)
-		self.ft.view:load(one_back_directory_path, one_back_directory)
+		self.ft.view:load(one_back_directory)
 	end
 end
 
@@ -99,7 +99,7 @@ end
 
 function Action:load_directory_on_cursor()
 	local directory  = self.ft.view:get_entry_at_cursor()
-	self.ft.view:load(directory.path, directory)
+	self.ft.view:load(directory)
 end
 
 function Action:toggle_scrollbar()

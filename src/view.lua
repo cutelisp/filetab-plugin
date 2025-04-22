@@ -24,6 +24,7 @@ local Virtual = utils.import("virtual")
 ---@field directory any
 ---@field virtual Virtual
 ---@field rename_at_cursor_line_num number?
+---@field real_entry_list number?
 local View = {}
 View.__index = View
 
@@ -35,12 +36,15 @@ function View:new(bp, settings)
 	instance.root_directory = nil 
 	instance.virtual = Virtual:new(bp)
 	instance.rename_at_cursor_line_num = nil
+	instance.is_root_directory_visible = nil
+	instance.real_entry_list = nil
 	return instance
 end
 
-function View:load(path, directory)
-	self.path = path
+function View:load(directory)
 	self.root_directory = directory
+	self.path = directory.path
+
 
 	self:clear()
 	self:print_header()
@@ -85,20 +89,21 @@ function View:print_header() --todo
 	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 0), self.path .. '\n')
 	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 1), string.rep('─', self.bp:GetView().Width) .. '\n') -- TODO this \n is probably wrong
 	self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 2), '..\n')
-	if Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY) then 
+	if self:get_is_root_directory_visible() then 
 		self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 3),self.root_directory:get_content() .. "\n")
 	end 
 end
 
 function View:print_entries()
 	local show_mode = self.settings:get(Settings.OPTIONS.SHOW_MODE)
-	local show_root_directory = Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY)
+	local is_root_directory_visible = self:get_is_root_directory_visible()
 	
-	local entries = self.root_directory:get_children_content(Settings.SHOW_MODES_FILTER[show_mode], show_root_directory and 1 or 0)
+	local entries, real_entry_list = self.root_directory:get_children_content(Settings.SHOW_MODES_FILTER[show_mode], is_root_directory_visible and 1 or 0)
+	self.real_entry_list = real_entry_list
 	-- Delete the last \n, otherwise it will create a blank line on bottom 
 	entries[#entries] = entries[#entries]:gsub("\n$", "")
 
-	if show_root_directory then 
+	if is_root_directory_visible then 
 		self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 4), table.concat(entries))
 	else
 		self.bp.Buf.EventHandler:Insert(buffer.Loc(0, 3), table.concat(entries))
@@ -167,20 +172,28 @@ function View:move_cursor_to_parent()
 end
 
 function View:move_cursor_to_first_sibling()
-	local parent = self:get_entry_at_cursor().parent
-	local parent_line = self:get_line_at_entry(parent)
-
-	self.virtual:move_cursor_and_select_line(parent_line + 1)
---	self.virtual:adjust() --todo make the adjust only ata certan range
+	local parent_line = self:get_parent_line(self:get_entry_at_cursor())
+	if parent_line then 
+		self.virtual:move_cursor_and_select_line(parent_line + 1)
+	else
+		-- If parent_line is nil, the cursor's parent entry is the root directory.
+		-- This happens when Preferences.OPTIONS.SHOW_ROOT_DIRECTORY is false, 
+		-- meaning the root exists but is hidden in the view.
+		self.virtual:move_cursor_and_select_line(INFO.DEFAULT_LINE_ON_OPEN)
+	end
 end
 
-
 function View:move_cursor_to_last_sibling()
-	local parent = self:get_entry_at_cursor().parent
-	local parent_line = self:get_line_at_entry(parent)
+	local cursor_entry = self:get_entry_at_cursor()
+	local parent = cursor_entry.parent
 	
-	self.virtual:move_cursor_and_select_line(parent_line + parent:len_nested())
-	self.virtual:adjust() --todo make the adjust only ata certan range
+	if parent == self.root_directory then 
+		self.virtual:move_cursor_and_select_last_line()
+	else
+		local parent_line = self:get_parent_line(cursor_entry)
+		self.virtual:move_cursor_and_select_line(parent_line + parent:len_nested())
+		self.virtual:adjust() --todo make the adjust only ata certan range
+	end
 end
 
 function View:move_cursor_to_entry(entry)
@@ -232,13 +245,11 @@ end
 -- This function consolidates all the displayed entries into a single array, ensuring that each
 -- displayed entry corresponds to its respective line with an offset of 2 due to the header.
 function View:get_entry_at_line(line_number)--todo check if its being claled with ant wo line:number
-	if Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY) and
-		line_number == INFO.ROOT_DIRECTORY_LINE then
+	if self:get_is_root_directory_visible() and line_number == INFO.ROOT_DIRECTORY_LINE then
 		return self.root_directory
 	end
-	local all_entries = self.root_directory:get_nested_children()
-	local ln = line_number or self.virtual.cursor:get_line_num()
-	return all_entries[ln - INFO.HEADER_SIZE + 1]
+
+	return self.real_entry_list[line_number - INFO.HEADER_SIZE + 1]
 end
 
 function View:get_entry_at_cursor()
@@ -250,18 +261,17 @@ function View:get_read_only(value)
 end
 
 function View:get_line_at_entry(entry)
-	local all_entries = self.root_directory:get_nested_children()
-	
-	if Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY) and
+	if self:get_is_root_directory_visible() and
 		entry == self.root_directory then
 		return INFO.ROOT_DIRECTORY_LINE
+	else
+	 	for i, each in ipairs(self.real_entry_list) do
+	        if each == entry then
+	        	-- minus one because lines start on 0 
+	            return i + INFO.HEADER_SIZE - 1
+	        end
+	    end
 	end
- 	for i, each in ipairs(all_entries) do
-        if each == entry then
-        	-- minus one because lines start on 0 
-            return i + INFO.HEADER_SIZE - 1
-        end
-    end
 	return nil
 end
 
@@ -271,6 +281,28 @@ end
 
 function View:get_root_directory()
 	return self.root_directory
+end
+
+function View:get_parent_line(entry)
+	local parent = entry.parent
+
+	if parent == self.root_directory then 
+		if self:get_is_root_directory_visible() then 
+			return INFO.ROOT_DIRECTORY_LINE
+		else
+			return nil
+		end
+	else
+		return self:get_line_at_entry(parent)
+	end
+end
+
+
+function View:get_is_root_directory_visible()
+	if not self.is_root_directory_visible then 
+		self.is_root_directory_visible = Preferences:get(Preferences.OPTIONS.SHOW_ROOT_DIRECTORY)
+	end
+	return self.is_root_directory_visible
 end
 
 return View
