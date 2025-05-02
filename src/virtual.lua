@@ -1,11 +1,7 @@
-local config = import('micro/config')
-
----@module "utils"
-local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
----@module "info"
-local INFO = utils.import("info")
----@module "preferences"
-local Preferences = utils.import("preferences")
+local buffer = import('micro/buffer')
+local util = import('micro/util')
+local utils = require("utils")
+local INFO = require("info")
 
 
 ---@class Virtual
@@ -26,11 +22,29 @@ function Virtual:new(bp)
 end
 
 function Virtual:click_event()
-    self.last_line_interact = nil
+    self.last_line_interact = self.cursor:get_line_num()
     self.selected_lines = {self.cursor:get_line_num()}
     self.cursor:save_current_loc()
     self.bp:Deselect()
     self.cursor:select_all()
+end
+
+
+function Virtual:was_last_click_on(line_num)
+	return self.last_line_interact == line_num
+end
+
+function Virtual:was_last_click_doubleclick()
+	return self.bp.DoubleClick
+end
+
+function Virtual:was_last_click_tripleclick()
+	return self.bp.TripleClick
+end
+
+
+function Virtual:was_last_click_on_header()
+	return self.last_line_interact < INFO.HEADER_SIZE
 end
 
 function Virtual:unselect_all()
@@ -69,6 +83,20 @@ function Virtual:drag_event()
     self:refresh()
 end
 
+
+function Virtual:insert_line(line_num, content)
+    self.bp.Buf.EventHandler:Insert(buffer.Loc(0, line_num), content)
+end
+
+function Virtual:clear()
+	self.bp.Buf.EventHandler:Remove(self.bp.Buf:Start(), self.bp.Buf:End())
+end
+
+
+function Virtual:backspace()
+	self.bp:Backspace()
+end
+
 function Virtual:is_line_selected(line_number)
     for _, line in ipairs(self.selected_lines) do
         if line == line_number then
@@ -89,8 +117,12 @@ function Virtual:refresh()
 end
 
 function Virtual:move_cursor_and_select_line(line_num)
-    self.bp.Cursor.Y = line_num
-    self.bp.Cursor:SelectLine()
+	if line_num > self.bp.Buf:LinesNum() - 1 then 
+		self:move_cursor_and_select_last_line()
+	else
+	    self.bp.Cursor.Y = line_num
+	    self.bp.Cursor:SelectLine()
+	end
 end	
 
 function Virtual:move_cursor_and_select_first_line()
@@ -123,6 +155,10 @@ function Virtual.Cursor:new(bp)
     self.bp = bp
     self.cursor_loc_tmp = nil
     self.last_click_loc = {}
+    self.cycle_index = 1
+    self.en_start_position = nil
+    self.en_visual_start_position = nil
+    self.bounds = {}
     return self
 end
 
@@ -138,43 +174,18 @@ function Virtual.Cursor:get_line_text()
 	return self.bp.Buf:line(self:get_line_num())
 end
 
-function Virtual.Cursor:get_line_text_len()
-	return #self.bp.Buf:line(self:get_line_num()) + 3
+function Virtual.Cursor:get_line_len()
+	return util.CharacterCountInString(self:get_line_text())
 end
 
-function Virtual.Cursor:move_to_file_name_start()
-	local line_string = self:get_line_text()
-	local first_char_loc = utils.first_char_loc(line_string)
-	self.bp:Deselect()
-	self:set_loc_x(first_char_loc)
+function Virtual.Cursor:move_to_entry_name_start()
+	self:set_loc_x(self.bounds.x_left)
 end
 
-function Virtual.Cursor:move_to_end()
+
+function Virtual.Cursor:move_to_entry_name_end()
 	self.bp:Deselect()
 	self.bp.Cursor:End()
-end
-
--- Moves the cursor to the first character of file_name, 
--- Selects everything to end of the line
-function Virtual.Cursor:select_file_name()
-	self:move_to_file_name_start()
-	self.bp:SelectToEndOfLine()
-end
-
--- Selects the entire file name, if it's an extension file
--- unselect till the first dot 
-function Virtual.Cursor:select_file_name_no_extension()
-	self:select_file_name()
-	local line_string = self:get_line_text()
-	local dot_loc = utils.get_dot_location(line_string)
-
-	if dot_loc then
-		for i = 1, #line_string - dot_loc + 1 do
-      		self.bp:SelectLeft()
-  		end
-	end
-	-- This makes get_can_move_right return true after selecting
-	self.bp.Cursor:Left()
 end
 
 function Virtual.Cursor:restore_loc()
@@ -182,11 +193,82 @@ function Virtual.Cursor:restore_loc()
     self:set_loc(self.last_click_loc)
 end
 
-function Virtual.Cursor:adjust()
-	local first_char_loc = utils.first_char_loc(self:get_line_text())
-	if self:get_loc_x() < first_char_loc then
-		self:set_loc_x(first_char_loc)
+function Virtual.Cursor:select_range(start_offset, length)
+    self:set_loc_x(start_offset)
+    for _ = 1, length do
+        self.bp:SelectRight()
+    end
+end
+
+function Virtual.Cursor:get_entry_name()
+	return string.sub(self:get_line_text(), self.en_start_position)
+end
+
+function Virtual.Cursor:select_entry_name_all()
+    self.bp:Deselect()
+    self:select_range(self.en_visual_start_position, #self:get_entry_name())
+end
+
+function Virtual.Cursor:select_entry_name()
+    self.bp:Deselect()
+    local dot_location = utils.get_dot_location(self:get_entry_name())
+    self:select_range(self.en_visual_start_position, dot_location - 1)
+end
+
+function Virtual.Cursor:select_entry_name_extension()
+    self.bp:Deselect()
+    local dot_location = utils.get_dot_location(self:get_entry_name())
+    self:select_range(self.en_visual_start_position + dot_location, #self:get_entry_name() - dot_location)
+end
+
+Virtual.Cursor.select_functions = {
+ 	Virtual.Cursor.select_entry_name,
+    Virtual.Cursor.select_entry_name_all,
+    Virtual.Cursor.select_entry_name_extension
+}
+
+function Virtual.Cursor:cycle_select_entry_name_init(entry_name, has_slash)
+	-- Each line contains an entry_name, but the Virtual class does not have direct access to it.
+	-- This function takes the entry_name from the current line, (by parameter), and stores its starting position.
+	-- For example:
+	-- lineText: "  blueAndGreen.php"
+	-- entry_name: "blueAndGreen.php"
+	-- store: 3
+	self.en_start_position = #self:get_line_text() - #entry_name + 1
+ 	-- The visual position in Micro may differ because a single character can consist of multiple bytes.
+	self.en_visual_start_position = self:get_line_len() - #entry_name
+	self.bounds = {
+		y = self:get_loc_y(),
+		x_left = self.en_visual_start_position,
+		x_right = function ()
+			local line_text = self.bp.Buf:line(self.bounds.y)
+			return util.CharacterCountInString(line_text)
+		end
+	}
+	self.cycle_index = 1
+	if has_slash then
+		self.bp:Deselect()
+		--self:unselect_all()
+		self:set_loc_x(self.bounds.x_right())
+		self.bp:Backspace()
 	end
+
+end
+
+function Virtual.Cursor:cycle_select_entry_name()
+   	if utils.has_dot(self:get_entry_name()) then 
+	    local func = Virtual.Cursor.select_functions[self.cycle_index]
+	    func(self)
+	else
+		self:select_entry_name_all()
+		self.cycle_index = 2
+	end
+	
+	-- This assures cursor is inside entry's name bounds
+	self:set_loc_x(self.en_visual_start_position +1)
+	
+	self.cycle_index = self.cycle_index % #Virtual.Cursor.select_functions + 1
+
 end
 
 function Virtual.Cursor:save_current_loc()
@@ -195,14 +277,30 @@ function Virtual.Cursor:save_current_loc()
     self.last_click_loc.Y = self.bp.Cursor.Loc.Y
 end
 
+function Virtual.Cursor:adjust()
+	if self:get_loc_y() < self.bounds.y then
+		self:set_loc_x(self.bounds.x_left)
+		self:set_loc_y(self.bounds.y)
+		return 
+	elseif self:get_loc_y() > self.bounds.y then
+		self:set_loc_x(self.bounds:x_right())
+		self:set_loc_y(self.bounds.y)
+		return
+	end
+
+	if self:get_loc_x() < self.bounds.x_left then
+		self:set_loc_x(self.bounds.x_left)
+	elseif self:get_loc_x() > self.bounds:x_right() then
+		self:set_loc_x(self.bounds:x_right())
+	end
+end
+
 function Virtual.Cursor:get_can_move_right()
-	-- -3 because line text has an icon which has more than 1 byte
-	local current_line_len = #self:get_line_text() - 3
-    return self:get_loc_x() <= current_line_len
+    return self:get_loc_x() < self.bounds:x_right()
 end
 
 function Virtual.Cursor:get_can_move_left()
-    return self:get_loc_x() > utils.first_char_loc(self:get_line_text())
+    return self:get_loc_x() > self.bounds.x_left
 end
 
 function Virtual.Cursor:get_loc()
@@ -231,6 +329,10 @@ end
 
 function Virtual.Cursor:set_loc_x(loc_x)
     self.bp.Cursor.Loc.X = loc_x
+end
+
+function Virtual.Cursor:set_loc_y(loc_y)
+    self.bp.Cursor.Loc.Y = loc_y
 end
 
 function Virtual.Cursor:ser_loc_zero_zero()

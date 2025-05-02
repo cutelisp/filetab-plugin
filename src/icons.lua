@@ -28,10 +28,16 @@ local config = import('micro/config')
 local regexp = import('regexp')
 local filepath = import('path/filepath')
 
+local ICONS_DIR = {
+	['arrow_closed'] = ' ',
+	['arrow_open'] = ' ',
+	['closed'] = ' ',
+	['opened'] = ' ',
+}
+
 local ICONS = {
 	['dir'] = ' ',
 	['dir_open'] = ' ',
-
 	['default'] = ' ',
 
 	['jenkins'] = ' ',
@@ -388,4 +394,4 @@ local function GetIcon(path)
 	return ICONS['default']
 end
 
-return { Icons = Icons, GetIcon = GetIcon }
+return { Icons = Icons, ICONS_DIR = ICONS_DIR, GetIcon = GetIcon }

@@ -2,85 +2,44 @@ local micro = import('micro')
 local os = import('os')
 local shell = import('micro/shell')
 local filepath = import('path/filepath')
-local config = import('micro/config')
+local utils = require("utils")
+local icon_utils = require("icons")
+local dir_icons = icon_utils.ICONS_DIR
+local INFO = require("info")
+local File = require("file")
+local Entry = require("entry")
+local Pref = require("preferences")
 
----@module "utils"
-local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
----@module "icons"
-local icon_utils = utils.import("icons")
-local icons = icon_utils.Icons()
----@module "info"
-local INFO = utils.import("info")
----@module "file"
-local File = utils.import("file")
----@module "entry"
-local Entry = utils.import("entry")
----@module "settings"
-local Settings = utils.import("settings")
----@module "preferences"
-local Preferences = utils.import("preferences")
-
-
----@class Directory : Entry
+---@class Directory : Entry 
+---@field empty_entry File? This is the entry shown when directory have no files inside and SHOW_EMPTY_ON_DIRECTORIES is on 
 ---@field children Entry[]?
+---@field children_ignored Entry[]?
 local Directory = setmetatable({}, { __index = Entry })
 Directory.__index = Directory
 
 ---@param path string
 ---@param parent Entry?
----@return Directory --todo
+---@return Directory
 function Directory:new(path, parent)
-	local entry = Entry:new(
+	local instance = Entry:new(
 		filepath.Base(path),
-		icons['dir'],
+		nil,
 		path,
 		parent
 	)
- 	local instance = setmetatable(entry, Directory)
+ 	---@cast instance Directory
+ 	setmetatable(instance, Directory)
+  	instance.empty_entry = nil
     instance.children = nil
     instance.children_ignored = nil
+    instance.nested_children = {}
+    instance:update_content()
     return instance
 end
 
-function Directory:get_child(num)
- 	return self.children[num]
-end
-
-function Directory:len(num)
- 	return self.children and #self.children or nil
-end
-
-function Directory:len_nested()
- 	return #self:get_nested_children()
-end
-
----@overload fun() : boolean
-function Directory:is_dir()
- 	return true
-end
-
-function Directory:get_content(offset)
-	if not self.content or true then
-		local arrow_icon = ""
-		if Preferences:get(Preferences.OPTIONS.SHOW_ARROWS) then
-		    if self.is_open then
-		        arrow_icon = INFO.ICON_DIRECTORY_OPEN
-		    else
-		        arrow_icon = INFO.ICON_DIRECTORY_CLOSED
-		    end
-		end
-
-		local content = arrow_icon .. self.icon .. self.name
-		
-	    if offset then
-	        content = string.rep(' ', 2 * offset) .. content
-	    end
-		self.content = content
-	end
- 	return self.content
-end
-
+local a = 0
 function Directory:children_create(directory)
+	a = a + 1
 	local all_files, err = os.ReadDir(self.path)
 
 	-- files will be nil if the directory is read-protected (no permissions)
@@ -111,79 +70,44 @@ function Directory:children_create(directory)
 	end
 
     -- Append all file entries to directories entries (So they can be correctly sorted)
-	return utils.get_appended_tables(directories, files)
+    local result = utils.get_appended_tables(directories, files)
+    if #result == 0 and Pref:get(Pref.OPTS.SHOW_EMPTY_ON_DIRECTORIES) then 
+    	result = {self:get_empty_entry()}
+    end
+	return result
 end
 
---local show_dotfiles = config.GetGlobalOption('filemanager.showdotfiles')
---local show_ignored_files = config.GetGlobalOption('filemanager.showignored') --TODO not working ignored_files not fetching correctly ig
-function Directory:get_children()
-	if not self.children then
-		self.children = self:children_create()
-	end
-	return self.children
-end
-
-function Directory:get_nested_children()
-	local children, nested_children  = {}, nil
-
+-- To increase performance this function does 2 things at the same thime
+-- Returns the content of all open nested children of the current directory
+-- Returns the nested children 
+function Directory:get_nested_children_content(show_mode_filter, offset)
+	local nested_content, nested_children = {}, {}
 	for _, child in ipairs(self:get_children()) do
-		table.insert(children, child)
-		if child:is_dir() and child.is_open then
-			nested_children = child:get_nested_children()
-			for _, nested_child in ipairs(nested_children) do
-				table.insert(children, nested_child)
-			end
-		end
-	end
-
-	return children
-end
-
--- Returns the content of all nested entries of self entry_list
-function Directory:get_children_content(show_mode_filter, offset)
-	if self.content == nil or true then --todo
-		local lines, nested_children = {}, nil
-
-
-		local real = {}
-		local nested_real = {}
-		for _, child in ipairs(self:get_children()) do
-			if show_mode_filter(child) then 
-				table.insert(lines, child:get_content(offset) .. "\n")
-				table.insert(real, child)
-				if child:is_dir() and child.is_open then
-					nested_children, nested_real = child:get_children_content(show_mode_filter, offset + 1)
-					for _, nested_child in ipairs(nested_children) do
-						table.insert(lines,  nested_child)
-					end
-					for _, aa in ipairs(nested_real) do
-						table.insert(real,  aa)
-					end
+		if show_mode_filter(child) then 
+			table.insert(nested_content, child:get_content(offset) .. "\n")
+			table.insert(nested_children, child)
+			if child:is_dir() and child.is_open then
+				---@cast child Directory
+				local c, r = child:get_nested_children_content(show_mode_filter, offset + 1)
+				for _ ,nested_child_content in ipairs(c) do --maybe use childappend here? todo
+					table.insert(nested_content,  nested_child_content)
+				end
+				for _ ,nested_child in ipairs(r) do
+					table.insert(nested_children, nested_child)
 				end
 			end
 		end
-		self.content = lines
-		self.real = real
 	end
-	return self.content, self.real
+	self.nested_children = nested_children
+	return nested_content, nested_children
 end
-
-function Directory:set_is_open(status)--todo
-	if self.children == nil then
-		self:get_children()
-    end
-
-    self.icon = status and icons['dir_open'] or icons['dir']
-    self.is_open = status
-end
-
 
 -- Returns a list of all files/directories inside the current directory that are ignored by the GIT system 
 function Directory:get_children_git_ignored()
 	if not self.children_ignored then
 		-- True/false if the target dir returns a non-fatal error when checked with 'git status'
 		local function has_git()
-			local git_rp_results = shell.RunCommand('git  -C ' .. self.path .. ' rev-parse --is-inside-work-tree')
+			local git_rp_results = shell.RunCommand('git  -C ' .. self.path .. ' rev-parse --is-inside-work-tree')--todo git might be not installed
 			return git_rp_results:match('^true%s*$')
 		end
 
@@ -201,5 +125,109 @@ function Directory:get_children_git_ignored()
 	return self.children_ignored
 end
 
+-- Lazy getter
+function Directory:get_empty_entry()
+	if not self.empty_entry then 
+		self.empty_entry = File:new_empty(self)
+	end 
+	return self.empty_entry
+end
+
+-- Lazy getter
+function Directory:get_children()
+
+	return self.children
+end
+
+function Directory:get_nested_children()
+	return self.nested_children
+end
+
+function Directory:set_is_open(status)
+	if not self.children then
+		self.children = self:children_create()
+    end
+    
+    self.is_open = status
+    self:update_content()
+end
+
+function Directory:toggle_is_open_all_nested()
+	local status = true
+
+	local function helper(directory)
+        directory:set_is_open(status)
+        
+        for _, child in ipairs(directory:get_children()) do
+            if child:is_dir() then
+                ---@cast child Directory
+                helper(child)
+            end
+        end
+    end
+    
+	local children = self:get_children()
+    if self.is_open  and #children > 0 and children[1].is_open then 
+		status = false
+	end
+
+ 	helper(self) 
+ 	self:set_is_open(true)
+end
+
+--todo this does not work since the children nested 2 degrees will have a wrong file may consider jksl
+function Directory:set_name(name)
+	Entry.set_name(self, name)
+	local dir = self.path
+	for _ ,child in ipairs(self:get_nested_children()) do
+		child:update_path(dir)
+	end
+end
+
+
+function Directory:append_child(child)
+	table.insert(self.children, child)
+	table.insert(self.nested_children, child)
+end
+
+function Directory:is_empty(num)
+	if not self.children then return true end
+ 	return #self.children == 0
+end
+
+--- override 
+function Directory:is_dir()
+ 	return true
+end
+
+-- override
+function Directory:update_content()
+ 	self.icon = self.is_open and dir_icons['opened'] or dir_icons['closed']
+
+	if Pref:get(Pref.OPTS.SHOW_ARROWS) then
+		local arrows = self.is_open and dir_icons['arrow_open'] or dir_icons['arrow_closed']
+		self.icon = arrows .. self.icon
+	end
+	
+	Entry.update_content(self)
+	if Pref:get(Pref.OPTS.SHOW_SLASH_ON_DIRECTORY) then
+		self.content = self.content .. "/"
+	end
+end
+
+
+
+function Directory:len_nested()
+ 	return #self:get_nested_children()
+end
+
+function Directory:delete_child(entry)
+ 	for i = #self.children, 1, -1 do 
+        if self.children[i] == entry then
+            table.remove(self.children, i)
+            return 
+        end
+    end
+end
 
 return Directory

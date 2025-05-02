@@ -1,10 +1,9 @@
 local config = import('micro/config')
-local micro = import('micro')
-local golib_ioutil = import('ioutil')
 local shell = import('micro/shell')
-local buffer = import('micro/buffer')
 local filepath = import('path/filepath')
-local str = import('strings')
+package.path = package.path .. ';' .. config.ConfigDir .. '/plug/filetab/src/?.lua'
+local icon = require("icons")
+local Preferences = require("preferences")
 
 ---@module "info"
 local INFO = dofile(config.ConfigDir .. '/plug/filetab/src/info.lua')
@@ -14,7 +13,6 @@ local function import(filename)
 end
 
 ---@module "icons"
-local icon = import("icons")
 
 function Icons()
 	return icon.Icons()--todo
@@ -24,6 +22,18 @@ local function get_panes_quantity(tab)
 	return #tab.Panes
 end
 
+
+local function get_empty_string()
+	local str = INFO.EMPTY_ENTRY_STRING
+	if Preferences:get(Preferences.OPTS.SHOW_ROOT_DIRECTORY) then 
+		str = "  " .. str
+		if Preferences:get(Preferences.OPTS.SHOW_ARROWS) then 
+			str = "  " .. str
+		end 
+	end 
+	
+	return str
+end
 
 -- Returns a list of files (in the target dir) that are ignored by the VCS system (if exists)
 -- aka this returns a list of gitignored files (but for whatever VCS is found)
@@ -90,10 +100,12 @@ local function first_char_loc(str)
     return nil
 end
 
-
+local function has_dot(s)
+    return string.find(s, "%.") ~= nil
+end
 -- Returns the postition of the last dot of the given string not considerating the first 
-local function get_dot_location(str)
-	local position = string.find(str, "%.[^%.]*$")
+local function get_dot_location(s)
+	local position = string.find(s, "%.[^%.]*$")
     return position
 end
 
@@ -112,5 +124,7 @@ return {
 	first_char_loc = first_char_loc,
 	get_dot_location = get_dot_location, 
 	get_content = get_content,
-	import = import
+	import = import,
+	has_dot = has_dot,
+	get_empty_string = get_empty_string
 }

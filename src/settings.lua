@@ -1,9 +1,6 @@
 local config = import('micro/config')
 
----@module "utils"
-local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
----@module "info"
-local INFO = utils.import("info")
+local INFO = require("info")
 
 
 ---@class Settings
@@ -30,6 +27,21 @@ Settings.SHOW_MODES = {
 	IGNORE_DOTFILES = "ignoreDotfiles",
 	IGNORE_GIT = "ignoreGit",
 	IGNORE_ALL = "ignoreAll",
+}
+
+Settings.SHOW_MODE_TOGGLES = {
+    dotfiles = {
+        [Settings.SHOW_MODES.SHOW_ALL] = Settings.SHOW_MODES.IGNORE_DOTFILES,
+        [Settings.SHOW_MODES.IGNORE_DOTFILES] = Settings.SHOW_MODES.SHOW_ALL,
+        [Settings.SHOW_MODES.IGNORE_GIT] = Settings.SHOW_MODES.IGNORE_ALL,
+        [Settings.SHOW_MODES.IGNORE_ALL] = Settings.SHOW_MODES.IGNORE_GIT,
+    },
+    gitfiles = {
+        [Settings.SHOW_MODES.SHOW_ALL] = Settings.SHOW_MODES.IGNORE_GIT,
+        [Settings.SHOW_MODES.IGNORE_DOTFILES] = Settings.SHOW_MODES.IGNORE_ALL,
+        [Settings.SHOW_MODES.IGNORE_GIT] = Settings.SHOW_MODES.SHOW_ALL,
+        [Settings.SHOW_MODES.IGNORE_ALL] = Settings.SHOW_MODES.IGNORE_DOTFILES,
+    }
 }
 
 Settings.SHOW_MODES_FILTER = {
@@ -104,7 +116,7 @@ function Settings:new(bp)
 	local instance = setmetatable({}, Settings)
 	instance.bp = bp
 	instance.options = {}
-	instance:load_default_options()
+--	instance:load_default_options()
 	return instance
 end
 

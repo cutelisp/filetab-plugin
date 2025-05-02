@@ -1,13 +1,9 @@
-local config = import('micro/config')
+local Entry = require("entry")
+local INFO = require("info")
+local icons = require("icons")
+local get_icon = icons.GetIcon
+local Pref = require("preferences")
 
----@module "utils"
-local utils = dofile(config.ConfigDir .. '/plug/filetab/src/utils.lua')
----@module "entry"
-local Entry = utils.import("entry")
----@module "icons"
-local icon_utils = utils.import("icons")
----@module "preferences"
-local Preferences = utils.import("preferences")
 
 ---@class File : Entry
 local File = setmetatable({}, { __index = Entry })
@@ -16,46 +12,47 @@ File.__index = File
 ---@param name string
 ---@param path string
 ---@param parent Entry
----@return Entry:File--todo
+---@return File
 function File:new(name, path, parent)
-	local entry = Entry:new(
+	local instance = Entry:new(
 		name,
-		icon_utils.GetIcon(name),
+		get_icon(name),
 		path,
 		parent
 	)
-    local instance = setmetatable(entry, File)
+	---@cast instance File
+    setmetatable(instance, File)
+   	instance:update_content()
     return instance
 end
 
--- Builds and returns the string representation of the file
--- The string is made up of an icon, the file name, and a slash if it's a directory
-function File:get_content(offset)
-	if not self.content or true then
-  		local content = self.icon .. self.name
+-- This is used when SHOW_EMPTY_ON_DIRECTORIES
+-- Altought this object does not represent a file it was not created on
+-- File class due to File:update_content() override being what this object needs
+function File:new_empty(parent)
+	local instance = Entry:new(
+		INFO.EMPTY_ENTRY_STRING,
+		"",
+		nil,
+		parent
+	)
+	---@cast instance File
+    setmetatable(instance, File)
+   	instance:update_content()
+    return instance
+end
 
-		if Preferences:get(Preferences.OPTIONS.SHOW_ARROWS) then
-			content = "  " .. content
-		end
-
-	    if offset then
-      		content = string.rep(' ', 2 * offset) .. content
-	    end
-		self.content = content
+--- override 
+function File:update_content()
+	Entry.update_content(self)
+	if Pref:get(Pref.OPTS.SHOW_ARROWS) then
+		 self.content = "  " .. self.content
 	end
- 	return self.content
 end
 
-function File:set_file_name(name)
-	-- Since update, the content is not up-to-date
-	self.content = nil
-	self.name = name
-end
-
----@overload fun() : boolean
+--- override 
 function File:is_dir()
  	return false
 end
-
 
 return File
